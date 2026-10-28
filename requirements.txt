@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+
+requests
+numpy
+
+faster-whisper
+ctranslate2
+av
+
+python-multipart
+aiofiles
+orjson
