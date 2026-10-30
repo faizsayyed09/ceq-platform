@@ -26,7 +26,8 @@ class PhiFinding:
 _PATTERNS: tuple[tuple[str, re.Pattern[str]]] = (
     ("ssn", re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")),
     ("mrn", re.compile(r"(?i)\b(?:MRN|medical record(?:\s+number)?|patient\s+(?:id|account)\s*(?:number)?|member\s+(?:id|number))\b\s*[:#]?\s*[A-Z0-9-]{4,20}")),
-    ("encounter", re.compile(r"(?i)\b(?:FIN|encounter(?:\s+number|\s+id)?|health\s+plan|insurance\s+(?:id|number)|member\s+(?:id|number))\b\s*[:#]?\s*[A-Z0-9-]{4,20}")),
+    ("patient_account", re.compile(r"(?i)\b(?:patient\s+account(?:\s+number)?|billing\s+account(?:\s+number)?|hospital\s+account(?:\s+number)?|guarantor\s+(?:id|number))\b\s*[:#]?\s*[A-Z0-9-]{4,20}")),
+    ("encounter", re.compile(r"(?i)\b(?:FIN|encounter(?:\s+number|\s+id)?|admission\s+(?:id|number)|visit\s+(?:id|number)|health\s+plan|insurance\s+(?:id|number)|member\s+(?:id|number))\b\s*[:#]?\s*[A-Z0-9-]{4,20}")),
     ("dob", re.compile(r"(?i)\b(?:date\s+of\s+birth|D\.?O\.?B\.?)\b\s*[:#]?\s*(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|[A-Z][a-z]+\s+\d{1,2},?\s+\d{4})")),
     ("patient_name", re.compile(r"(?i)\bpatient(?:'s)?(?:\s+name|\s+named|\s+called|\s+is)?\s*[:#-]?\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?")),
     ("clinical_detail", re.compile(r"(?i)\b(?:diagnosis|diagnosed with|medication|dosage|prescription|lab results?|test results?|allergy|allergies|surgery|admitted|discharged|treatment plan|insulin|chemotherapy|pregnancy|HIV|cancer|overdose|psychiatric)\b[^.!?]{0,160}")),
