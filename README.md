@@ -35,3 +35,7 @@ AI-powered call auditing platform.
 - Docker
 - FastAPI
 - Azure Container Apps
+
+## Development Workflow
+
+See [docs/Development-Workflow.md](docs/Development-Workflow.md) for VS Code setup, Langflow component mounting, Docker volumes, Git branching, testing, releases, and component/MCP conventions. Tracked VS Code configuration is under `.vscode/`; local secrets belong in `.env.local` and must not be committed.
