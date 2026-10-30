@@ -17,6 +17,9 @@ from services.genesys_auth import GenesysAuthService
 from services.recording import RecordingService
 from services.transcription import TranscriptionService
 from services.report import ReportService
+from services.matching import FingerprintService, TicketMatchingService
+from services.knowledge import KnowledgeService
+from services.audit import AuditService
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -59,6 +62,25 @@ class ReportRequest(BaseModel):
     audit_id: str = Field(..., min_length=36, max_length=36)
     title: str = Field(default="CEQ Audit Report", max_length=200)
     body: object
+
+
+class TicketMatchRequest(BaseModel):
+    transcript: str = Field(..., min_length=1, max_length=500_000)
+    tickets: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
+    threshold: float = Field(default=0.5, ge=0, le=1)
+
+
+class KnowledgeSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=10_000)
+    articles: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
+    limit: int = Field(default=10, ge=1, le=100)
+
+
+class AuditRequest(BaseModel):
+    transcript: str = Field(..., max_length=500_000)
+    ticket: dict[str, object] = Field(default_factory=dict)
+    knowledge_articles: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
+    raw_result: str | dict[str, object] | None = None
 
 
 @app.exception_handler(CeqError)
@@ -140,18 +162,24 @@ async def transcribe(audio: UploadFile = File(...), redact_pii: bool = True) -> 
 
 
 @app.post("/ticket-match")
-async def ticket_match() -> dict[str, str]:
-    return {"status": "not_implemented", "message": "TicketMatchingService migration pending"}
+async def ticket_match(payload: TicketMatchRequest) -> dict[str, object]:
+    fingerprint = FingerprintService().fingerprint(payload.transcript)
+    matches = TicketMatchingService().match(payload.transcript, payload.tickets, payload.threshold)
+    return {"fingerprint": fingerprint, **matches}
 
 
 @app.post("/kb-search")
-async def kb_search() -> dict[str, str]:
-    return {"status": "not_implemented", "message": "KnowledgeService migration pending"}
+async def kb_search(payload: KnowledgeSearchRequest) -> dict[str, object]:
+    return KnowledgeService().search(payload.query, payload.articles, payload.limit)
 
 
 @app.post("/audit")
-async def audit() -> dict[str, str]:
-    return {"status": "not_implemented", "message": "AuditService migration pending"}
+async def audit(payload: AuditRequest) -> dict[str, object]:
+    service = AuditService()
+    result = service.build_payload(payload.transcript, payload.ticket, payload.knowledge_articles)
+    if payload.raw_result is not None:
+        result["audit_result"] = service.parse_result(payload.raw_result)
+    return result
 
 
 @app.post("/generate-report")
