@@ -5,18 +5,56 @@ services:
       dockerfile: docker/Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - ../.env.example
+      - path: ../.env.local
+        required: false
     environment:
-      APP_ENV: development
-      LOG_LEVEL: INFO
-      MAX_FILE_SIZE_MB: 500
-      MAX_AUDIO_DURATION_SECONDS: 14400
-      ALLOW_MANUAL_TOKEN_TESTING: "false"
-      GENESYS_REGION: mypurecloud.com
+      PYTHONPATH: /app/ceq-components:/app
+      REPORT_DIR: /app/generated_reports
+      HF_HOME: /app/cache/huggingface
+      WHISPER_CACHE: /app/models/whisper
+      PYTHONDONTWRITEBYTECODE: "1"
     volumes:
+      - ../api:/app/api:ro
+      - ../modules:/app/modules:ro
+      - ../services:/app/services:ro
+      - ../components:/app/ceq-components:ro
       - ../generated_reports:/app/generated_reports
+      - whisper_models:/app/models
+      - hf_cache:/app/cache/huggingface
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  langflow:
+    image: "${LANGFLOW_IMAGE:-langflowai/langflow:latest}"
+    ports:
+      - "${LANGFLOW_PORT:-7860}:7860"
+    env_file:
+      - ./.env.example
+      - path: ./.env.local
+        required: false
+    environment:
+      LANGFLOW_COMPONENTS_PATH: /app/ceq-components
+      PYTHONPATH: /app/ceq-components:/app
+      PYTHONDONTWRITEBYTECODE: "1"
+      HF_HOME: /app/cache/huggingface
+      WHISPER_CACHE: /app/models/whisper
+    volumes:
+      - ../components:/app/ceq-components:ro
+      - ../modules:/app/modules:ro
+      - ../services:/app/services:ro
+      - ../flows:/app/flows:ro
+      - ../generated_reports:/app/generated_reports
+      - langflow_data:/app/langflow
+      - whisper_models:/app/models
+      - hf_cache:/app/cache/huggingface
+
+volumes:
+  langflow_data:
+  whisper_models:
+  hf_cache:
