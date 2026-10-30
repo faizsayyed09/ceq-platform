@@ -1,30 +1,50 @@
 from __future__ import annotations
 
-from lfx.custom.custom_component.component import Component
-from lfx.io import FileInput, StrInput, BoolInput, Output
-from lfx.schema.data import Data
+from pathlib import Path
 
-from services.transcription import TranscriptionService
+from .modules.service import TranscriptionService
 
 
-class CustomComponent(Component):
-    display_name = "CEQ QA Transcriber V2"
-    description = "Runtime-neutral transcription adapter using the CEQ TranscriptionService."
-
-    inputs = [
-        FileInput(name="audio_file", display_name="Audio File", required=True),
-        StrInput(name="protection_mode", display_name="PHI Protection Mode", value="AUDIT_MODE"),
-        BoolInput(name="redact_pii", display_name="Deprecated legacy PII flag", value=False, advanced=True),
-    ]
-
-    outputs = [Output(display_name="Transcript", name="transcript", method="transcribe")]
-
-    def transcribe(self) -> Data:
-        service = TranscriptionService()
-        legacy_redact = None if not bool(self.redact_pii) else True
-        result = service.transcribe(
-            str(self.audio_file),
-            protection_mode=str(self.protection_mode or "AUDIT_MODE"),
-            redact=legacy_redact,
+class CEQTranscriberV2:
+    def __init__(
+        self,
+        model_size: str = "large-v3-turbo",
+        device: str = "cpu",
+        compute_type: str = "int8",
+        language: str | None = None,
+    ) -> None:
+        self.service = TranscriptionService(
+            model_size=model_size,
+            device=device,
+            compute_type=compute_type,
+            language=language,
         )
-        return Data(data=result)
+
+    def transcribe(
+        self,
+        audio_path: str | Path,
+        protection_mode: str = "AUDIT_MODE",
+        redact: bool | None = None,
+    ) -> dict:
+        return self.service.transcribe(
+            audio_path,
+            protection_mode=protection_mode,
+            redact=redact,
+        )
+
+
+def transcribe_audio(
+    audio_path: str | Path,
+    protection_mode: str = "AUDIT_MODE",
+    redact: bool | None = None,
+    model_size: str = "large-v3-turbo",
+    device: str = "cpu",
+    compute_type: str = "int8",
+    language: str | None = None,
+) -> dict:
+    return CEQTranscriberV2(
+        model_size=model_size,
+        device=device,
+        compute_type=compute_type,
+        language=language,
+    ).transcribe(audio_path, protection_mode=protection_mode, redact=redact)
