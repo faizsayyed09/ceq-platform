@@ -13,7 +13,12 @@ from modules.exceptions import CeqError, ResourceNotFoundError, SecurityError, V
 from modules.logging import configure_logging
 from modules.storage import LocalArtifactStore
 from modules.validation import validate_safe_filename
-from services.genesys_auth import GenesysAuthService
+from services.genesys_auth import (
+    GenesysAuthConfiguration,
+    GenesysAuthService,
+    TokenOptions,
+    normalize_region,
+)
 from services.recording import RecordingService
 from services.transcription import TranscriptionService
 from services.report import ReportService
@@ -24,12 +29,42 @@ from services.audit import AuditService
 settings = get_settings()
 configure_logging(settings.log_level)
 
-auth_service = GenesysAuthService(
-    region=settings.genesys_region,
+genesys_configuration = GenesysAuthConfiguration.from_environment()
+genesys_configuration = GenesysAuthConfiguration(
+    region=normalize_region(settings.genesys_region),
     client_id=settings.genesys_client_id,
     client_secret=settings.genesys_client_secret,
-    allow_manual_token_testing=settings.allow_manual_token_testing,
+    manual_token=genesys_configuration.manual_token if settings.allow_manual_token_testing else None,
+    verify_org=genesys_configuration.verify_org,
+    timeout_seconds=genesys_configuration.timeout_seconds,
+    cache_refresh_margin_seconds=genesys_configuration.cache_refresh_margin_seconds,
 )
+auth_service = GenesysAuthService(genesys_configuration)
+
+VALID_GENESYS_REGIONS = {
+    "mypurecloud.com",
+    "mypurecloud.ie",
+    "mypurecloud.com.au",
+    "mypurecloud.jp",
+    "mypurecloud.de",
+    "usw2.pure.cloud",
+    "cac1.pure.cloud",
+    "euw2.pure.cloud",
+    "apne2.pure.cloud",
+    "apne3.pure.cloud",
+    "apse2.pure.cloud",
+    "sae1.pure.cloud",
+    "mec1.pure.cloud",
+}
+
+
+def validate_genesys_region(region: str) -> str:
+    normalized = normalize_region(region)
+    if normalized not in VALID_GENESYS_REGIONS:
+        raise ValidationError(
+            f"Invalid Genesys region. Must be one of: {', '.join(sorted(VALID_GENESYS_REGIONS))}"
+        )
+    return normalized
 
 app = FastAPI(title="CEQ Platform v2", version="2.0.0")
 
@@ -112,14 +147,19 @@ async def readiness() -> dict[str, str]:
 
 @app.post("/auth/genesys", response_model=GenesysAuthResponse)
 async def authenticate_genesys(payload: GenesysAuthRequest) -> GenesysAuthResponse:
-    result = auth_service.authenticate(region=payload.region, manual_token=payload.manual_token)
-    return GenesysAuthResponse(**result)
+    region = validate_genesys_region(payload.region)
+    manual_token = payload.manual_token.strip() if payload.manual_token else None
+    if manual_token and not settings.allow_manual_token_testing:
+        raise ValidationError("Manual token testing is disabled in this environment.")
 
+    result = auth_service.get_access_token(
+        TokenOptions(region=region, manual_token=manual_token)
+    )
+    return GenesysAuthResponse(**result.to_dict(include_token=True))
 
 @app.post("/recording/download")
 async def recording_download(payload: RecordingDownloadRequest) -> dict[str, object]:
-    region = payload.region.strip().lower()
-    auth_service._validate_region(region)
+    region = validate_genesys_region(payload.region)
     store = LocalArtifactStore(settings.report_dir)
     service = RecordingService(store, max_file_size_mb=settings.max_file_size_mb)
     recordings = service.fetch_recordings(region, payload.conversation_id, payload.access_token)
