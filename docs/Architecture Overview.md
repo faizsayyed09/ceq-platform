@@ -168,3 +168,26 @@ Version
 Version: 1.0
 
 Last Updated: October 2026
+
+---
+
+# CEQ Platform V2 Target Architecture (Work in Progress)
+
+```text
+FastAPI routes
+  -> runtime-neutral services
+  -> provider adapters
+  -> external systems / ArtifactStore
+```
+
+Runtime-neutral services currently established:
+
+- `GenesysAuthService`
+- `RecordingService`
+- `TranscriptionService`
+- `ReportService`
+- `LocalArtifactStore`
+
+Target services and adapters remain separated from Langflow `lfx` and Matcha integrations. Production execution requires stateless containers, external object storage, environment/Key Vault secrets, Managed Identity, structured logs, bounded HTTP calls, and no worker-local locks or package repair.
+
+See `V2-Service-Contracts.md` for the current service boundary and API error contract.

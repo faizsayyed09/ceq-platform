@@ -22,6 +22,10 @@ whisper_engine.py
     ?
 transcript_builder.py
     ?
-pii_redaction.py
+phi_protection.py (compatibility wrapper only)
     ?
 service.py
+
+The canonical transcript is preserved for audit operations. PHI protection is explicit and mode-based:
+`OFF`, `AUDIT_MODE`, `LLM_MODE`, or `STRICT`. Operational identifiers, names, contacts, ticket/KB references,
+and locations must not be treated as generic PII.
