@@ -26,8 +26,10 @@
 
 - Validates file existence, size, FFprobe availability, duration, and media metadata.
 - Uses a pinned `faster-whisper` dependency installed in the container image; it never installs packages at runtime.
-- Emits text, timestamped segments, segment count, size, and duration.
-- Applies explicit redaction patterns before returning transcript content by default.
+- Emits canonical text, timestamped segments, segment count, size, and duration.
+- Uses the PHI protection policy instead of generic PII redaction. Patient identifiers and clinical details may be detected or projected by destination, but agent/caller names, emails, phones, ticket references, KB IDs, departments, locations, devices, and systems remain available.
+- Supports `OFF`, `AUDIT_MODE`, `LLM_MODE`, and `STRICT` protection modes.
+- `AUDIT_MODE` preserves canonical transcript text and reports PHI findings as metadata. `LLM_MODE` adds a provider-safe projection. `STRICT` blocks protected destinations when PHI is detected.
 
 ## ReportService
 

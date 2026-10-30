@@ -135,7 +135,11 @@ async def recording_download(payload: RecordingDownloadRequest) -> dict[str, obj
 
 
 @app.post("/transcribe")
-async def transcribe(audio: UploadFile = File(...), redact_pii: bool = True) -> dict[str, object]:
+async def transcribe(
+    audio: UploadFile = File(...),
+    protection_mode: str = settings.phi_protection_mode,
+    redact_pii: bool | None = None,
+) -> dict[str, object]:
     if not audio.filename:
         raise ValidationError("Audio filename is required")
     scratch_dir = Path(tempfile.mkdtemp(prefix="ceq-transcribe-"))
@@ -152,7 +156,7 @@ async def transcribe(audio: UploadFile = File(...), redact_pii: bool = True) -> 
                     raise ValidationError(f"Audio exceeds {settings.max_file_size_mb} MB limit")
                 output.write(chunk)
         service = TranscriptionService(max_audio_duration_seconds=settings.max_audio_duration_seconds, max_file_size_mb=settings.max_file_size_mb)
-        return service.transcribe(target, redact=redact_pii)
+        return service.transcribe(target, protection_mode=protection_mode, redact=redact_pii)
     except RuntimeError as exc:
         raise CeqError(str(exc)) from exc
     finally:
