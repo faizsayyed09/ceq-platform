@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "GitHub.copilot",
+    "GitHub.copilot-chat",
+    "ms-python.python",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+    "humao.rest-client",
+    "DavidAnson.vscode-markdownlint",
+    "ms-vscode.azurecli"
+  ]
+}
