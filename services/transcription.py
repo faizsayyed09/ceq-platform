@@ -1,20 +1,13 @@
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 from pathlib import Path
 
 from modules.constants import MAX_AUDIO_DURATION_SECONDS, MAX_FILE_SIZE_MB
 from modules.exceptions import CeqError, ValidationError
-
-
-_PII_PATTERNS = (
-    (re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)"), "[REDACTED_SSN]"),
-    (re.compile(r"(?<!\d)\d{16}(?!\d)"), "[REDACTED_CARD]"),
-    (re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"), "[REDACTED_EMAIL]"),
-)
+from services.phi_protection import PhiProtectionService
 
 
 class TranscriptionService:
@@ -57,7 +50,15 @@ class TranscriptionService:
             raise ValidationError(f"Audio duration exceeds {self.max_audio_duration_seconds} seconds")
         return {"duration_seconds": duration, "size_bytes": size_bytes}
 
-    def transcribe(self, audio_path: str | Path, redact: bool = True) -> dict[str, object]:
+    def transcribe(
+        self,
+        audio_path: str | Path,
+        protection_mode: str = "AUDIT_MODE",
+        redact: bool | None = None,
+    ) -> dict[str, object]:
+        if redact is not None:
+            protection_mode = "LLM_MODE" if redact else "OFF"
+        phi_service = PhiProtectionService(protection_mode)
         metadata = self.validate(audio_path)
         try:
             from faster_whisper import WhisperModel
@@ -68,10 +69,18 @@ class TranscriptionService:
         segments, _ = model.transcribe(str(audio_path), beam_size=5, vad_filter=True)
         rows: list[dict[str, object]] = []
         for segment in segments:
-            text = segment.text.strip()
-            if redact:
-                for pattern, replacement in _PII_PATTERNS:
-                    text = pattern.sub(replacement, text)
-            rows.append({"start": float(segment.start), "end": float(segment.end), "text": text})
-        text = " ".join(str(row["text"]).strip() for row in rows if str(row["text"]).strip()).strip()
-        return {"text": text, "segments": rows, "segment_count": len(rows), **metadata}
+            rows.append({"start": float(segment.start), "end": float(segment.end), "text": segment.text.strip()})
+        phi_result = phi_service.project_segments(rows, protection_mode)
+        return {
+            "text": phi_result["canonical_text"],
+            "segments": phi_result["canonical_segments"],
+            "protected_text": phi_result["protected_text"],
+            "protected_segments": phi_result["protected_segments"],
+            "segment_count": len(rows),
+            "phi_protection": {
+                "mode": phi_result["mode"],
+                "categories": phi_result["phi_categories"],
+                "finding_count": len(phi_result["findings"]),
+            },
+            **metadata,
+        }
