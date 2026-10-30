@@ -151,6 +151,33 @@ def test_kb_gap(tmp_path):
     assert result.evidence.knowledge.enforceable is False
 
 
+def test_recording_failure(tmp_path):
+    class RecordingFailure:
+        def download_recording(self, conversation_id):
+            raise RuntimeError("recording download failed")
+
+        def get_recording_metadata(self, conversation_id):
+            return {}
+
+    workflow = make_workflow(tmp_path, recording_service=RecordingFailure())
+    result = run(workflow.execute(make_request()))
+
+    assert result.status == AuditWorkflowState.FAILED
+    assert result.error == "recording download failed"
+
+
+def test_transcription_failure(tmp_path):
+    class TranscriptionFailure:
+        def transcribe(self, path, protection_mode="AUDIT_MODE"):
+            raise RuntimeError("transcription failed")
+
+    workflow = make_workflow(tmp_path, transcription_service=TranscriptionFailure())
+    result = run(workflow.execute(make_request()))
+
+    assert result.status == AuditWorkflowState.FAILED
+    assert result.error == "transcription failed"
+
+
 def test_audit_failure(tmp_path):
     workflow = make_workflow(tmp_path, audit_service=MockAudit("ceq execution failed"))
     result = run(workflow.execute(make_request()))
