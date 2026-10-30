@@ -13,7 +13,7 @@ services:
       PYTHONPATH: /app/ceq-components:/app
       REPORT_DIR: /app/generated_reports
       HF_HOME: /app/cache/huggingface
-      WHISPER_CACHE: /app/models/whisper
+      WHISPER_MODEL_CACHE: /app/models/whisper
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
       - ../api:/app/api:ro
@@ -43,7 +43,7 @@ services:
       PYTHONPATH: /app/ceq-components:/app
       PYTHONDONTWRITEBYTECODE: "1"
       HF_HOME: /app/cache/huggingface
-      WHISPER_CACHE: /app/models/whisper
+      WHISPER_MODEL_CACHE: /app/models/whisper
     volumes:
       - ../components:/app/ceq-components:ro
       - ../modules:/app/modules:ro
