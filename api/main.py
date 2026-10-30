@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 from fastapi import FastAPI, File, Request, UploadFile
@@ -221,9 +222,10 @@ async def kb_search(payload: KnowledgeSearchRequest) -> dict[str, object]:
 async def audit(payload: AuditRequest) -> dict[str, object]:
     service = AuditService()
     result = service.build_payload(payload.transcript, payload.ticket, payload.knowledge_articles)
+    response = asdict(result) if is_dataclass(result) else dict(result)
     if payload.raw_result is not None:
-        result["audit_result"] = service.parse_result(payload.raw_result)
-    return result
+        response["audit_result"] = service.parse_result(payload.raw_result)
+    return response
 
 
 @app.post("/generate-report")
