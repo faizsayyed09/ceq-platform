@@ -17,10 +17,10 @@ Goals
 Architecture
 
 `audio_validation.py`
-- Validates file existence, size, FFprobe metadata, stream presence, duration, and codec metadata.
+- Validates file existence, safe resolved paths, symlinks, size, FFprobe metadata, stream presence, duration, codec metadata, and provides allowed-root safe deletion.
 
 `whisper_engine.py`
-- Owns the pinned model runtime, transcription options, segment normalization, and engine metadata.
+- Owns the versioned model runtime, `large-v3-turbo` default, cached model loading, transcription options, segment normalization, and engine metadata. Model caches are container-managed.
 
 `silence_detection.py`
 - Derives dead-air gaps from normalized transcription segment boundaries.

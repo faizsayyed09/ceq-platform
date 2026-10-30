@@ -45,3 +45,35 @@ def test_transcript_builder_groups_same_speaker_utterances():
     assert result["segment_count"] == 3
     assert result["utterance_count"] == 2
     assert result["utterances"][0]["speaker"] == "agent"
+
+
+def test_silence_detection_classifies_hold_and_long_silence():
+    segments = [
+        {"start": 0.0, "end": 1.0, "text": "Please hold"},
+        {"start": 35.0, "end": 36.0, "text": "Still here"},
+        {"start": 48.0, "end": 49.0, "text": "Thank you"},
+    ]
+
+    events = detect_silence_segments("unused.wav", segments=segments)
+
+    assert [event["type"] for event in events] == ["hold", "long_silence"]
+
+
+def test_phi_protection_preserves_operational_service_desk_data():
+    from services.phi_protection import PhiProtectionService
+
+    text = "Agent Jane Doe called caller John Smith at 555-123-4567 for ticket INC1234567 KB000123"
+    result = PhiProtectionService("LLM_MODE").project(text)
+
+    assert result["text"] == text
+    assert result["findings"] == []
+
+
+def test_phi_protection_detects_mrn_fin_and_medication_information():
+    from services.phi_protection import PhiProtectionService
+
+    text = "MRN 12345678 FIN 98765432 Medication insulin 10 units"
+    result = PhiProtectionService("LLM_MODE").project(text)
+
+    assert "[PHI_" in result["text"]
+    assert {finding["category"] for finding in result["findings"]} >= {"mrn", "encounter", "clinical_detail"}

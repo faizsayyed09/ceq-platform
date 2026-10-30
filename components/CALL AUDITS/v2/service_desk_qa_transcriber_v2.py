@@ -8,7 +8,7 @@ from .modules.service import TranscriptionService
 class CEQTranscriberV2:
     def __init__(
         self,
-        model_size: str = "base",
+        model_size: str = "large-v3-turbo",
         device: str = "cpu",
         compute_type: str = "int8",
         language: str | None = None,
@@ -37,7 +37,7 @@ def transcribe_audio(
     audio_path: str | Path,
     protection_mode: str = "AUDIT_MODE",
     redact: bool | None = None,
-    model_size: str = "base",
+    model_size: str = "large-v3-turbo",
     device: str = "cpu",
     compute_type: str = "int8",
     language: str | None = None,
