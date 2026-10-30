@@ -5,8 +5,8 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 
-def format_timestamp(seconds: float | int | str) -> str:
-    """Format a non-negative duration as HH:MM:SS.mmm."""
+def format_timestamp(seconds: float | int | str, include_milliseconds: bool = False) -> str:
+    """Format a non-negative duration as MM:SS or HH:MM:SS."""
     try:
         value = max(0.0, float(seconds))
     except (TypeError, ValueError):
@@ -15,12 +15,15 @@ def format_timestamp(seconds: float | int | str) -> str:
         value = 0.0
 
     total_milliseconds = round(value * 1000)
-    hours, remainder = divmod(total_milliseconds, 3_600_000)
-    minutes, remainder = divmod(remainder, 60_000)
-    whole_seconds, milliseconds = divmod(remainder, 1000)
-    if hours:
-        return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}.{milliseconds:03d}"
-    return f"{minutes:02d}:{whole_seconds:02d}.{milliseconds:03d}"
+    total_seconds = total_milliseconds // 1000
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, whole_seconds = divmod(remainder, 60)
+    milliseconds = total_milliseconds % 1000
+
+    base = f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}" if hours else f"{minutes:02d}:{whole_seconds:02d}"
+    if include_milliseconds:
+        return f"{base}.{milliseconds:03d}"
+    return base
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -39,8 +42,13 @@ def _resolve_speaker(
 ) -> str | None:
     if callable(attribution):
         try:
-            speaker = attribution(source, index)
-        except (TypeError, ValueError):
+            speaker = attribution(source)
+        except TypeError:
+            try:
+                speaker = attribution(source, index)
+            except (TypeError, ValueError):
+                speaker = None
+        except ValueError:
             speaker = None
     elif isinstance(attribution, Mapping):
         speaker = attribution.get(row_id, attribution.get(index + 1, None))
