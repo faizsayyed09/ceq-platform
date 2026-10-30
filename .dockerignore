@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__
+*.py[cod]
+.pytest_cache
+.venv
+venv
+.env
+.generated_reports*
+generated_reports/*
+components
+flows
+docs/*.pdf
