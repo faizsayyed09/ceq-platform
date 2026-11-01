@@ -148,6 +148,13 @@ class KnowledgeSearchRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=100)
 
 
+class KnowledgeLookupV2Request(BaseModel):
+    ticket: dict[str, object] = Field(default_factory=dict)
+    sanitized_description: str = Field(default="", max_length=10_000)
+    issue_terms: list[str] = Field(default_factory=list, max_length=100)
+    product: str = Field(default="", max_length=500)
+
+
 class AuditRequest(BaseModel):
     transcript: str = Field(..., max_length=500_000)
     ticket: dict[str, object] = Field(default_factory=dict)
@@ -292,6 +299,16 @@ async def ticket_match(payload: TicketMatchRequest) -> dict[str, object]:
 @app.post("/kb-search")
 async def kb_search(payload: KnowledgeSearchRequest) -> dict[str, object]:
     return KnowledgeService().search(payload.query, payload.articles, payload.limit)
+
+
+@app.post("/kb/lookup-v2")
+async def kb_lookup_v2(payload: KnowledgeLookupV2Request) -> dict[str, object]:
+    return KnowledgeService().lookup_v2(
+        payload.ticket,
+        sanitized_description=payload.sanitized_description,
+        issue_terms=payload.issue_terms,
+        product=payload.product,
+    )
 
 
 @app.post("/audit")

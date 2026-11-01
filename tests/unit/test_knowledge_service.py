@@ -3,6 +3,7 @@ import pytest
 from contracts.knowledge import (
     KnowledgeArticle,
     KnowledgeConfidence,
+    KnowledgeCitation,
     KnowledgeQuery,
     KnowledgeSearchRequest,
     KnowledgeSearchResult,
@@ -93,3 +94,48 @@ def test_invalid_search_inputs_are_rejected():
         service.search("", [])
     with pytest.raises(ValidationError):
         service.search("reset", [], limit=101)
+
+
+def test_phase5_router_builds_query_and_unknown_client_falls_back():
+    service = KnowledgeService()
+    mapped = {
+        "default_shard": "generic_other",
+        "shards": [
+            {"shard_id": "comanche", "client_keys": ["comanche"], "aliases": ["Comanche"]},
+            {"shard_id": "generic_other", "client_keys": ["generic_other"], "aliases": ["Managed Services"]},
+        ],
+    }
+    assert service.route_shard("Comanche", mapped)["shard_id"] == "comanche"
+    fallback = service.route_shard("Unknown Health", mapped)
+    assert fallback["shard_id"] == "generic_other"
+    assert fallback["fallback"] is True
+    assert service.build_query(
+        {"Short description": "Password reset"},
+        sanitized_description="Account access is locked",
+        issue_terms=["Active Directory"],
+        product="Windows",
+    ).startswith("Password reset")
+
+
+def test_phase5_lookup_drops_unretrieved_citations():
+    provider = MockKnowledgeProvider()
+    provider.search = lambda request: KnowledgeSearchResult(
+        articles=(KnowledgeArticle(article_id="KB-1", title="Password reset", metadata={"score": 42}),),
+        citations=(KnowledgeCitation(article_id="NOT-RETRIEVED"),),
+        confidence=KnowledgeConfidence.HIGH,
+        provider="mock",
+    )
+    service = KnowledgeService(provider=provider)
+    result = service.lookup_v2(
+        {"Company": "Comanche", "Short description": "Password reset", "KA number": "KB-1"},
+        sanitized_description="Reset password",
+        client_map={
+            "default_shard": "generic_other",
+            "shards": [{"shard_id": "comanche", "client_keys": ["comanche"], "aliases": ["Comanche"]}],
+        },
+    )
+    assert result["kb_status"] == "FOUND"
+    assert result["confidence"] == "HIGH"
+    assert result["shard_used"] == "comanche"
+    assert result["cited_by_agent"] == ["KB-1"]
+    assert result["reasons"]["validation"]["dropped_ids"] == ["NOT-RETRIEVED"]
