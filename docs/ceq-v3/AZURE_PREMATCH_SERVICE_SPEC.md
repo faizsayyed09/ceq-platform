@@ -104,3 +104,10 @@ Per audit in shadow: log both statuses, both top tickets, scores, and a disagree
 3. Export fault injection: truncated file, wrong columns, empty file, two files, 403 from Matcha, replace during download.
 4. Load: a batch of calls arriving right after an hourly replace.
 5. Daylight-saving week: rows around the repeated hour.
+
+## 11. Repository baseline status
+
+- Added `/snow/refresh`, `/snow/status`, and `/snow/prematch` with the existing bearer service authentication middleware.
+- Refresh stores metadata only; ticket rows are supplied directly to the baseline prematch call and are never persisted.
+- Matcha environment-specific download credentials and D12 cache storage are not configured here.
+- `PREMATCH_MODE` accepts `matcha`, `shadow`, or `azure`; the safe repository default is `shadow`.

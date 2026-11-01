@@ -30,11 +30,14 @@ See the decision log in `00_INDEX.md` (D1 to D12). D12 (Azure derived cache of t
 
 ### Phase 1: Hourly SNOW export flow (Power Automate)
 Spec: `SNOW_EXPORT_FLOW_SPEC.md`. One permanent file, replaced in place; validate before replace; retries and alerts; settle wait; Azure refresh call; 72-hour window.
+- **Where it lives:** the SNOW flow is a new Power Automate flow, not part of the MDS (Langflow) flows. Store its export under `flows/power-automate/snow-export/` with secrets removed. The production validator is an Office Script (TypeScript) run by the flow; a test-time Python mirror of the same rules lives in `tests/` so the rules are tested on sample files.
+- **Before go-live:** the Matcha dispatcher can delete superseded or failed exports; disable that for the SNOW folder. Confirm which folder each component really uses (defaults say 31790 and 31536; the configured values are in the flow exports).
 - **Exit:** 24 consecutive successful hourly replacements; exactly one file in the folder; export age alert tested.
 
 ### Phase 2: KB sync hardening and per-client shards
 Spec: `KB_SYNC_AND_SHARDING_SPEC.md`. Fix the sync defects, add the client map, create about 12 shard missions with prompts from one master template, backfill in batches.
 - **Exit:** every shard under 180 files; delta run idempotent; failed items retried the next day; old mission 47043 untouched until Phase 5 parity.
+- **Implementation status:** a repository client-map template, route validator and HTML normalization mirror are added under `flows/power-automate/kb-sync/` and `scripts/kb_sync.py`. Production folder and mission IDs remain null; shard creation and live sync require service-key ownership and Matcha API confirmation (open items 2 and 3). Documented claim: Proposed; implementation validation: Tested by unit tests.
 
 ### Phase 3: Azure job API baseline and SNOW pre-match service
 Spec: `AZURE_PREMATCH_SERVICE_SPEC.md`, boundary in `MATCHA_AZURE_BOUNDARY.md`.
@@ -43,23 +46,30 @@ Spec: `AZURE_PREMATCH_SERVICE_SPEC.md`, boundary in `MATCHA_AZURE_BOUNDARY.md`.
 - **Shadow mode:** run beside the Matcha component for every audit; log both; review every disagreement. Switch values: `matcha`, `shadow`, `azure`.
 - **Cutover gate (Proposed):** no regression on a labelled set; every disagreement explained; zero PHI in sampled candidate payloads; rollback switch tested. The Matcha component stays deployed until the gate passes and for an agreed period after.
 - **Parallel track 3b:** ASR bake-off (`ASR_MODEL_EVALUATION.md`) behind an adapter, so the model can change without touching the job contract.
+- **Implementation status:** the authenticated `/snow/refresh`, `/snow/status`, and `/snow/prematch` API contracts are implemented with metadata-only refresh state, existing fingerprint/matcher reuse, LLM-mode candidate projection, idempotency, and `PREMATCH_MODE` shadow/rollback configuration. This is repository baseline code; D12-derived/cache approval, labelled parity, and production Matcha download credentials remain live cutover blockers. Status: Tested; 189 repository tests pass with 1 skipped, including focused pre-match/API coverage.
 
 ### Phase 4: PHI policy v2 (role-aware)
 Spec: `PHI_POLICY_V2.md`. Clinicians and staff are not PHI; caller identity lane before redaction; typed placeholders and flags.
 - **Exit:** labelled corpus built; PHI recall and caller-name retention measured per entity type; targets signed off by the policy owner.
+- **Implementation status:** repository baseline now carries a policy-versioned, role-aware Python projection with caller-track/self-introduction, requester/contact/agent lane metadata, typed regex identifiers, counts-only flags, and verification-pass residue metadata. It preserves workforce names while redacting patient and identifier findings. Presidio, an encoded/decoder model, labelled recall/caller-retention targets, calibrated thresholds, and production cutover remain unresolved and blocked by the policy items below. Status: Tested; baseline unit coverage added, full-suite verification pending.
 
 ### Phase 5: KB lookup v2
 Spec: `KB_LOOKUP_V2_SPEC.md`. Router, two-stage search, cited-ID validation, code-side confidence, evaluation set.
 - **Exit:** hit rate at least equal to mission 47043 on the evaluation set; zero cross-client citations.
+- **Implementation status:** repository baseline adds shard routing through the controlled client map, query construction, run-scoped lookup caching, citation validation, agent `KA number` promotion, fallback status, and code-side confidence. Live shard Mission IDs and a two-stage Mission read/full-article provider are not configured. Status: Tested by repository unit coverage; production parity remains blocked on a Matcha service key, Mission IDs, and labelled evaluation data.
 
 ### Phase 6: MCP tools (optional)
 Read-only tools for analysts and the Teams bot (`kb_search`, `kb_get_article`, `snow_find_ticket`, `ceq_audit`). Writes need approval. The batch pipeline never calls MCP.
+- **Implementation status:** a dependency-free read-only MCP JSON-RPC and REST tool baseline is added with the four allowlisted tools. Calls inherit service authentication in production. Batch jobs do not call MCP. KB article full content depends on supplied article data; Matcha/MCP hosting and live service-account ownership remain proposed. Status: Tested by repository unit coverage; no write actions are implemented.
 
 ### Phase 7: Cutover and retirement
 Retire the Matcha pre-match component after the gate; retire the Azure workflow, dispatcher, matcher and knowledge providers per the ownership matrix. Retire mission 47043 after Phase 5.
+- **Implementation status:** Added repository-side shadow comparison and cutover gate endpoints. They expose disagreement classes, labels and gate checks, preserve the safe `shadow` default, and list retirement candidates without deleting or disabling any component. Because labelled replay data, policy owner approval and sampled candidate evidence are unavailable in repository state, the gate remains closed; rollback remains configuration value `matcha`.
+- **Documented:** `AZURE_PREMATCH_SERVICE_SPEC.md` section 8 requires two-path shadow evidence, disagreement review, one rollback switch and a gate of no regression, explained disagreements, zero PHI in sampled payloads and tested rollback. `MISSION_OWNERSHIP_MATRIX.md` requires that legacy, dispatcher and Mission components remain until replacement parity passes.
 
 ### Phase 8: Container release
 Spec: `DOCKER_PACKAGING_AND_PORTABILITY.md`. A portable image built last, from the finished service, with a documented list of prerequisites (network, secrets, volumes, configuration) and a preflight check. Requirements are tracked from Phase 3 so nothing is hard-coded to Azure.
+- **Implementation status:** Added a role-aware container entrypoint and runtime preflight for `api`, `worker`, and `preflight`; production API startup/readiness fail closed when required service authentication or report storage is unavailable. Docker Compose and `/health/ready` now use readiness rather than liveness. The image remains release-gated until target-host confirmation (open item 13), model/dependency checksums, clean-host replay, supply-chain signing, and measured resources are available.
 - **Exit:** the image starts on a clean host using only its documented prerequisites; preflight passes; a replay of a synthetic call completes end to end.
 
 ## 4. Request budget (planning figures, not measured)

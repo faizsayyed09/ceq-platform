@@ -8,11 +8,15 @@ Secrets belong in `.env.local`, Docker local env files, platform secret stores, 
 |---|---:|---|---|---|
 | `APP_ENV` | No | `development` | Application environment label | API, Docker, Langflow, Azure |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity | API, Docker, Langflow, Azure |
+| `CEQ_API_SERVICE_TOKEN` | Production | Empty | Bearer token for service-to-service API authentication; also accepts `CEQ_API_SERVICE_TOKEN_FILE` | API, Docker, Azure |
 | `GENESYS_REGION` | Conditional | `mypurecloud.com` | Default Genesys API region | API, Langflow, Azure |
 | `GENESYS_CLIENT_ID` | Conditional | Empty | Genesys OAuth client ID | API, Langflow, Azure |
 | `GENESYS_CLIENT_SECRET` | Conditional | Empty | Genesys OAuth client secret | API, Langflow, Azure |
 | `ALLOW_MANUAL_TOKEN_TESTING` | No | `false` | Enables manual bearer tokens only in approved test environments | API, Langflow, Azure |
 | `PHI_PROTECTION_MODE` | No | `AUDIT_MODE` | One of `OFF`, `AUDIT_MODE`, `LLM_MODE`, `STRICT` | API, Langflow, Azure |
+| `PREMATCH_MODE` | No | `shadow` | One of `matcha`, `shadow`, `azure`; no cutover until the Phase 3 gate passes | API, Azure |
+| `PREMATCH_CACHE_ENABLED` | No | `false` | Reserved for the approved D12 cache implementation; the baseline stores refresh metadata only | API, Azure |
+| `PREMATCH_TOP_N` | No | `3` | Candidate count from 1 through 5 | API, Azure |
 | `MAX_FILE_SIZE_MB` | No | `500` | Maximum upload/download size | API, Docker, Azure |
 | `MAX_AUDIO_DURATION_SECONDS` | No | `14400` | Maximum transcribed audio duration | API, Docker, Azure |
 | `REPORT_DIR` | No | `generated_reports` locally | Local report/artifact directory; container default should be mounted externally | API, Docker |

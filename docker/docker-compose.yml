@@ -6,8 +6,8 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ../.env.example
-      - path: ../.env.local
+      - ./.env.example
+      - path: ./.env.local
         required: false
     environment:
       PYTHONPATH: /app/ceq-components:/app
@@ -24,7 +24,7 @@ services:
       - whisper_models:/app/models
       - hf_cache:/app/cache/huggingface
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
       interval: 30s
       timeout: 5s
       retries: 3

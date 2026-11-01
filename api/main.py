@@ -4,6 +4,7 @@ import os
 import tempfile
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+import hmac
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -26,6 +27,10 @@ from services.report import ReportService
 from services.matching import FingerprintService, TicketMatchingService
 from services.knowledge import KnowledgeService
 from services.audit import AuditService
+from services.snow_prematch import SnowPrematchService
+from services.mcp_tools import ReadOnlyMcpTools
+from services.cutover import CutoverGateService
+from services.preflight import RuntimePreflight
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -70,6 +75,40 @@ def validate_genesys_region(region: str) -> str:
 app = FastAPI(title="CEQ Platform v2", version="2.0.0")
 
 
+@app.middleware("http")
+async def require_service_authentication(request: Request, call_next):
+    public_paths = {
+        "/health",
+        "/health/live",
+        "/health/ready",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    }
+    if request.url.path in public_paths or settings.app_env.lower() not in {"production", "prod"}:
+        return await call_next(request)
+
+    if not settings.api_service_token:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "ServiceAuthenticationError", "message": "Service authentication is not configured"},
+        )
+
+    authorization = request.headers.get("authorization", "")
+    scheme, separator, token = authorization.partition(" ")
+    if (
+        separator != " "
+        or scheme.lower() != "bearer"
+        or not hmac.compare_digest(token.strip(), settings.api_service_token)
+    ):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "ServiceAuthenticationError", "message": "Invalid service credentials"},
+        )
+
+    return await call_next(request)
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str
@@ -112,11 +151,73 @@ class KnowledgeSearchRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=100)
 
 
+class KnowledgeLookupV2Request(BaseModel):
+    ticket: dict[str, object] = Field(default_factory=dict)
+    sanitized_description: str = Field(default="", max_length=10_000)
+    issue_terms: list[str] = Field(default_factory=list, max_length=100)
+    product: str = Field(default="", max_length=500)
+
+
+class McpToolCallRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    arguments: dict[str, object] = Field(default_factory=dict, max_length=1000)
+
+
+class McpJsonRpcRequest(BaseModel):
+    jsonrpc: str = Field(default="2.0")
+    id: object | None = None
+    method: str = Field(..., min_length=1, max_length=100)
+    params: dict[str, object] = Field(default_factory=dict, max_length=1000)
+
+
+class ShadowComparisonRequest(BaseModel):
+    matcha_status: str = Field(default="", max_length=100)
+    azure_status: str = Field(default="", max_length=100)
+    matcha_top_ticket: str | None = Field(default=None, max_length=100)
+    azure_top_ticket: str | None = Field(default=None, max_length=100)
+    matcha_score: float | None = None
+    azure_score: float | None = None
+    explained: bool = False
+    label: str = Field(default="", max_length=100)
+
+
 class AuditRequest(BaseModel):
     transcript: str = Field(..., max_length=500_000)
     ticket: dict[str, object] = Field(default_factory=dict)
     knowledge_articles: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
     raw_result: str | dict[str, object] | None = None
+
+
+class SnowRefreshRequest(BaseModel):
+    file_id: str = Field(default="", max_length=255)
+    updated_at: str | None = Field(default=None, max_length=100)
+    sha256: str = Field(default="", max_length=64)
+    row_count: int = Field(default=0, ge=0)
+    export_rows: int = Field(default=0, ge=0)
+    coverage_start: str | None = Field(default=None, max_length=100)
+
+
+class SnowPrematchRequest(BaseModel):
+    conversation_id: str = Field(..., min_length=1, max_length=255)
+    run_id: str = Field(..., min_length=1, max_length=255)
+    transcript: str = Field(..., max_length=500_000)
+    tickets: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
+    call_start: str | None = Field(default=None, max_length=100)
+    call_end: str | None = Field(default=None, max_length=100)
+    agent_names: list[str] = Field(default_factory=list, max_length=100)
+    agent_emails: list[str] = Field(default_factory=list, max_length=100)
+    top_n: int = Field(default=3, ge=1, le=5)
+
+
+class CutoverGateRequest(BaseModel):
+    cases: list[ShadowComparisonRequest] = Field(default_factory=list, max_length=10000)
+    phi_samples_checked: bool = False
+    rollback_tested: bool = False
+
+
+snow_prematch_service = SnowPrematchService()
+mcp_tools = ReadOnlyMcpTools()
+cutover_gate = CutoverGateService()
 
 
 @app.exception_handler(CeqError)
@@ -143,6 +244,21 @@ async def liveness() -> dict[str, str]:
 
 @app.get("/health/ready", include_in_schema=False)
 async def readiness() -> dict[str, str]:
+    if settings.app_env.lower() in {"production", "prod"}:
+        preflight_environment = dict(os.environ)
+        preflight_environment["APP_ENV"] = settings.app_env
+        preflight_environment["REPORT_DIR"] = settings.report_dir
+        if settings.api_service_token:
+            preflight_environment["CEQ_API_SERVICE_TOKEN"] = settings.api_service_token
+        else:
+            preflight_environment.pop("CEQ_API_SERVICE_TOKEN", None)
+        result = RuntimePreflight(preflight_environment).run(role="api")
+        failed = [check["detail"] for check in result["checks"] if not check["passed"]]
+        if failed:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not-ready", "reason": "runtime preflight failed", "failed_checks": failed},
+            )
     return {"status": "ready"}
 
 
@@ -218,6 +334,52 @@ async def kb_search(payload: KnowledgeSearchRequest) -> dict[str, object]:
     return KnowledgeService().search(payload.query, payload.articles, payload.limit)
 
 
+@app.post("/kb/lookup-v2")
+async def kb_lookup_v2(payload: KnowledgeLookupV2Request) -> dict[str, object]:
+    return KnowledgeService().lookup_v2(
+        payload.ticket,
+        sanitized_description=payload.sanitized_description,
+        issue_terms=payload.issue_terms,
+        product=payload.product,
+    )
+
+
+@app.get("/mcp/tools")
+async def mcp_tools_list() -> dict[str, object]:
+    return mcp_tools.list_tools()
+
+
+@app.post("/mcp/tools/call")
+async def mcp_tools_call(payload: McpToolCallRequest) -> dict[str, object]:
+    return mcp_tools.call(payload.name, payload.arguments)
+
+
+@app.post("/mcp")
+async def mcp_json_rpc(payload: McpJsonRpcRequest) -> dict[str, object]:
+    result: dict[str, object]
+    if payload.method == "initialize":
+        result = {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "ceq-readonly-tools", "version": "1.0.0"},
+        }
+    elif payload.method in {"tools/list", "tools.list"}:
+        result = mcp_tools.list_tools()
+    elif payload.method in {"tools/call", "tools.call"}:
+        name = str(payload.params.get("name") or "")
+        arguments = payload.params.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
+        result = mcp_tools.call(name, arguments)
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "id": payload.id,
+            "error": {"code": -32601, "message": "Method not found"},
+        }
+    return {"jsonrpc": "2.0", "id": payload.id, "result": result}
+
+
 @app.post("/audit")
 async def audit(payload: AuditRequest) -> dict[str, object]:
     service = AuditService()
@@ -233,3 +395,71 @@ async def generate_report(payload: ReportRequest) -> dict[str, str]:
     store = LocalArtifactStore(settings.report_dir)
     service = ReportService(store)
     return await service.generate(payload.audit_id, payload.title, payload.body)
+
+
+@app.post("/snow/refresh")
+async def snow_refresh(payload: SnowRefreshRequest) -> dict[str, object]:
+    state = snow_prematch_service.refresh(payload.model_dump())
+    return snow_prematch_service.status()
+
+
+@app.get("/snow/status")
+async def snow_status() -> dict[str, object]:
+    return snow_prematch_service.status()
+
+
+@app.post("/snow/prematch")
+async def snow_prematch(payload: SnowPrematchRequest) -> dict[str, object]:
+    return snow_prematch_service.prematch(
+        conversation_id=payload.conversation_id,
+        run_id=payload.run_id,
+        transcript=payload.transcript,
+        tickets=payload.tickets,
+        call_start=payload.call_start,
+        call_end=payload.call_end,
+        agent_names=tuple(payload.agent_names),
+        agent_emails=tuple(payload.agent_emails),
+        top_n=payload.top_n,
+        prematch_mode=settings.prematch_mode,
+    )
+
+
+@app.post("/cutover/shadow-compare")
+async def cutover_shadow_compare(payload: ShadowComparisonRequest) -> dict[str, object]:
+    return cutover_gate.compare(
+        matcha_status=payload.matcha_status,
+        azure_status=payload.azure_status,
+        matcha_top_ticket=payload.matcha_top_ticket,
+        azure_top_ticket=payload.azure_top_ticket,
+        matcha_score=payload.matcha_score,
+        azure_score=payload.azure_score,
+    )
+
+
+@app.post("/cutover/gate")
+async def cutover_gate_evaluate(payload: CutoverGateRequest) -> dict[str, object]:
+    cases = []
+    for case in payload.cases:
+        comparison = cutover_gate.compare(
+            matcha_status=case.matcha_status,
+            azure_status=case.azure_status,
+            matcha_top_ticket=case.matcha_top_ticket,
+            azure_top_ticket=case.azure_top_ticket,
+            matcha_score=case.matcha_score,
+            azure_score=case.azure_score,
+        )
+        cases.append({
+            **comparison,
+            "explained": case.explained,
+            "label": case.label,
+        })
+    return cutover_gate.evaluate(
+        cases,
+        phi_samples_checked=payload.phi_samples_checked,
+        rollback_tested=payload.rollback_tested,
+    )
+
+
+@app.get("/cutover/status")
+async def cutover_status() -> dict[str, object]:
+    return cutover_gate.evaluate([], phi_samples_checked=False, rollback_tested=False)

@@ -102,3 +102,26 @@ Questions for the Matcha team (send now, not blocking):
 | 14 | Whether the audio can leave Azure at all (affects hosted ASR options) | Compliance | ASR choice |
 | 15 | Who owns the flow-run service account for FlowBuilder | Platform admin | Orchestration choice |
 | 16 | Share your SLM and regex rules (or the old `LocalSLMDetector` logic): model used, labels, thresholds, what counts as PHI versus caller | Policy owner | Phase 4 (PHI_POLICY_V2 section 4) |
+| 17 | The Matcha dispatcher can delete "superseded or failed" exports (reported by code review, `new_calls_dispatcher.py`). Confirm exactly when, on which folder, and disable it for the SNOW folder before the one-permanent-file flow goes live | Engineering | Phase 1 go-live |
+| 18 | Folder IDs differ between components: pre-match defaults to 31790 (mission 50641), the dispatcher to 31536. Defaults in components are not the configured values: read the actual values from the flow exports and from the Matcha UI, then confirm which folder holds today's export | Engineering, operations | Phase 1 |
+| 19 | Is the SLM running in production at all? The current detector calls an Ollama server at 127.0.0.1:11434 (default model llama3.2); the Azure container (1 vCPU, 2 Gi) may not host one | Engineering | Phase 4, packaging |
+| 20 | Replace the history-scan command proposed by the agent with the pickaxe commands in section 8 (the original loops over every file in every commit and has a regex escaping fault) | Engineering | Phase 0 |
+
+## 8. Scanning git history without printing values
+
+Preferred:
+
+```text
+gitleaks detect --source . --log-opts="--all" --redact
+gitleaks detect --no-git --source . --redact
+```
+
+Without extra tools (prints commit and file names only, never the matched text):
+
+```text
+git log --all --pickaxe-regex -S"mk_live_[0-9a-fA-F]{20}" --format="%H %ad" --name-only
+git log --all --pickaxe-regex -S"mos_sk_live_[A-Za-z0-9_-]{20}" --format="%H %ad" --name-only
+git log --all --pickaxe-regex -S"<credential-prefix>" --format="%H %ad" --name-only
+```
+
+Also scan Genesys client secrets, SAS tokens and connection strings with gitleaks because simple text patterns miss them. Any hit means rotate the affected credential before deciding whether history rewriting is required.

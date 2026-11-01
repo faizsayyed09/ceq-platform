@@ -93,3 +93,11 @@ Shards live in the legacy environment today. The new environment is not synced; 
 - A retired then republished article ends up present once.
 - A client change moves the article and leaves no copy behind.
 - A forced failure on one item still produces the summary and retries next run.
+
+## 11. Repository implementation status
+
+Status: Proposed for live flow behavior; Tested for the Python route/HTML mirror in `scripts/kb_sync.py` and `tests/unit/test_kb_sync.py`.
+
+- A client-map template exists at `flows/power-automate/kb-sync/client-map.json`.
+- Production folder and mission values are null until confirmed; no credentials are stored.
+- Live shard creation is manual because Matcha mission/prompt API availability remains open (section 7 item 3).

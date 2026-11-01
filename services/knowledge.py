@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import re
+import json
+import hashlib
+from pathlib import Path
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -22,6 +25,167 @@ class KnowledgeService:
 
     def __init__(self, provider: KnowledgeProvider | None = None) -> None:
         self.provider = provider
+        self._lookup_cache: dict[str, dict[str, object]] = {}
+
+    def route_shard(self, company: object, client_map: Mapping[str, object] | None = None) -> dict[str, object]:
+        resolved_map = client_map or self._load_default_client_map()
+        normalized = re.sub(r"[^a-z0-9]+", "_", str(company or "").lower()).strip("_")
+        for shard in resolved_map.get("shards", []):
+            if not isinstance(shard, Mapping):
+                continue
+            keys = {re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_") for value in shard.get("client_keys", [])}
+            aliases = {re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_") for value in shard.get("aliases", [])}
+            if normalized in keys or normalized in aliases:
+                return dict(shard)
+        default_id = resolved_map.get("default_shard")
+        for shard in resolved_map.get("shards", []):
+            if isinstance(shard, Mapping) and shard.get("shard_id") == default_id:
+                return dict(shard, fallback=True)
+        return {"shard_id": "", "fallback": False, "unmapped": True}
+
+    def build_query(
+        self,
+        ticket: Mapping[str, object] | None = None,
+        *,
+        issue_terms: Iterable[str] = (),
+        product: str = "",
+        sanitized_description: str = "",
+    ) -> str:
+        ticket = ticket or {}
+        parts = [
+            str(ticket.get("Short description") or ticket.get("short_description") or "").strip(),
+            sanitized_description.strip(),
+            product.strip(),
+            " ".join(str(value).strip() for value in issue_terms if str(value).strip()),
+        ]
+        query = " ".join(part for part in parts if part)
+        if len(query) > 10000:
+            raise ValidationError("Knowledge query exceeds size limit")
+        if not query:
+            raise ValidationError("Knowledge query is required")
+        return query[:10000]
+
+    def validate_citations(
+        self,
+        cited_ids: Iterable[str],
+        retrieved_ids: Iterable[str],
+        *,
+        shard_id: str,
+        allowed_shards: Iterable[str] = (),
+    ) -> dict[str, object]:
+        retrieved = {str(value).strip().upper() for value in retrieved_ids if str(value).strip()}
+        valid_shards = {str(value).strip() for value in allowed_shards if str(value).strip()} or {shard_id}
+        valid = []
+        dropped = []
+        cross_client = []
+        for article_id in cited_ids:
+            normalized = str(article_id).strip().upper()
+            if not normalized:
+                continue
+            if normalized not in retrieved:
+                dropped.append(normalized)
+            elif shard_id not in valid_shards:
+                cross_client.append(normalized)
+            else:
+                valid.append(normalized)
+        return {
+            "valid_ids": valid,
+            "dropped_ids": dropped,
+            "cross_client_ids": cross_client,
+        }
+
+    def lookup_v2(
+        self,
+        ticket: Mapping[str, object],
+        *,
+        sanitized_description: str = "",
+        client_map: Mapping[str, object] | None = None,
+        issue_terms: Iterable[str] = (),
+        product: str = "",
+    ) -> dict[str, object]:
+        company = ticket.get("Company") or ticket.get("company") or ""
+        shard = self.route_shard(company, client_map)
+        shard_id = str(shard.get("shard_id") or "")
+        fallback_used = bool(shard.get("fallback"))
+        query = self.build_query(ticket, sanitized_description=sanitized_description, issue_terms=issue_terms, product=product)
+        cache_key = f"{shard_id}:{hashlib.sha256(query.encode('utf-8')).hexdigest()}"
+        if cache_key in self._lookup_cache:
+            cached = dict(self._lookup_cache[cache_key])
+            cached["fallback_used"] = fallback_used
+            return cached
+
+        if self.provider is None:
+            result = {"kb_status": "ERROR", "confidence": "LOW", "articles": [], "kb_gap": True, "cited_by_agent": [], "reasons": ["Knowledge provider is required"], "shard_used": shard_id, "fallback_used": fallback_used}
+            return result
+        search_result = self.search_provider(KnowledgeQuery(issue_summary=query, client=str(company)), limit=20)
+        articles = tuple(article for article in search_result.articles[:3])
+        cited_ids = self._extract_agent_citations(ticket)
+        retrieved_ids = tuple(article.article_id for article in search_result.articles)
+        validation = self.validate_citations(
+            tuple(item.article_id for item in search_result.citations) + tuple(cited_ids),
+            retrieved_ids,
+            shard_id=shard_id,
+        )
+        if search_result.kb_gap:
+            kb_status = "NONE"
+        elif articles and search_result.confidence == KnowledgeConfidence.HIGH and not validation["cross_client_ids"]:
+            kb_status = "FOUND"
+        elif articles:
+            kb_status = "WEAK"
+        else:
+            kb_status = "NONE"
+        confidence = self._code_confidence(search_result, validation, cited_ids, fallback_used)
+        result = {
+            "kb_status": kb_status if kb_status != "NONE" else ("ERROR" if search_result.kb_gap else "NONE"),
+            "confidence": confidence.value,
+            "articles": [
+                {"article_id": article.article_id, "title": article.title, "score": article.metadata.get("score", 0)}
+                for article in articles
+            ],
+            "kb_gap": bool(search_result.kb_gap or kb_status == "NONE"),
+            "cited_by_agent": sorted({article_id for article_id in cited_ids if article_id in retrieved_ids}),
+            "reasons": {
+                "retrieval": kb_status,
+                "validation": validation,
+                "mission_confidence_ignored": True,
+            },
+            "shard_used": shard_id,
+            "fallback_used": fallback_used,
+        }
+        self._lookup_cache[cache_key] = result
+        return result
+
+    def _code_confidence(
+        self,
+        result: KnowledgeSearchResult,
+        validation: Mapping[str, object],
+        cited_ids: Iterable[str],
+        fallback_used: bool,
+    ) -> KnowledgeConfidence:
+        if fallback_used or validation["cross_client_ids"]:
+            return KnowledgeConfidence.LOW
+        normalized_cited = {str(value).strip().upper() for value in cited_ids}
+        retrieved = {article.article_id.upper() for article in result.articles if article.article_id}
+        if normalized_cited.intersection(retrieved):
+            return KnowledgeConfidence.HIGH
+        if validation["dropped_ids"]:
+            return KnowledgeConfidence.MEDIUM
+        if result.articles:
+            return KnowledgeConfidence.HIGH if result.confidence == KnowledgeConfidence.HIGH else KnowledgeConfidence.MEDIUM
+        return KnowledgeConfidence.LOW
+
+    @staticmethod
+    def _extract_agent_citations(ticket: Mapping[str, object]) -> tuple[str, ...]:
+        value = ticket.get("KA number") or ticket.get("ka_number") or ticket.get("cited_article_id") or ""
+        if isinstance(value, (list, tuple)):
+            return tuple(str(item).strip().upper() for item in value if str(item).strip())
+        normalized = str(value).strip()
+        return (normalized.upper(),) if normalized else ()
+
+    def _load_default_client_map(self) -> Mapping[str, object]:
+        path = Path(__file__).resolve().parents[1] / "flows" / "power-automate" / "kb-sync" / "client-map.json"
+        with path.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
 
     def search(self, query: str, articles: list[dict[str, Any]], limit: int = 10) -> dict[str, object]:
         """Backward-compatible ranked search used by existing callers."""
