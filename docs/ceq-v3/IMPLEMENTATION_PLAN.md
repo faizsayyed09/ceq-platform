@@ -37,6 +37,7 @@ Spec: `SNOW_EXPORT_FLOW_SPEC.md`. One permanent file, replaced in place; validat
 ### Phase 2: KB sync hardening and per-client shards
 Spec: `KB_SYNC_AND_SHARDING_SPEC.md`. Fix the sync defects, add the client map, create about 12 shard missions with prompts from one master template, backfill in batches.
 - **Exit:** every shard under 180 files; delta run idempotent; failed items retried the next day; old mission 47043 untouched until Phase 5 parity.
+- **Implementation status:** a repository client-map template, route validator and HTML normalization mirror are added under `flows/power-automate/kb-sync/` and `scripts/kb_sync.py`. Production folder and mission IDs remain null; shard creation and live sync require service-key ownership and Matcha API confirmation (open items 2 and 3). Documented claim: Proposed; implementation validation: Tested by unit tests.
 
 ### Phase 3: Azure job API baseline and SNOW pre-match service
 Spec: `AZURE_PREMATCH_SERVICE_SPEC.md`, boundary in `MATCHA_AZURE_BOUNDARY.md`.
