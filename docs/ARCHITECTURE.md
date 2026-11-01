@@ -1,16 +1,14 @@
 # CEQ Platform Architecture
 
-## Purpose
+CEQ v3 is the authority for maintained architecture. `docs/ceq-v3/00_INDEX.md` lists D1-D12 decisions; this document summarizes the implemented repository boundary.
 
-CEQ Platform processes quality-audit interactions across Genesys Cloud, tickets, knowledge sources, transcription, audit evaluation, dispatching, reports, and artifacts. The platform separates reusable business/runtime services from delivery adapters.
-
-## Current Runtime Architecture
+## Runtime architecture
 
 ```text
-Langflow/Desktop or HTTP client
+Maintained HTTP/API clients and compatibility adapters
             |
             v
-FastAPI api/main.py -------- Langflow components/components adapters
+FastAPI api/main.py
             |
             v
 Runtime-neutral services (services/, modules/, contracts/)
@@ -37,7 +35,7 @@ Reports, records, workflow state, audit evidence
 - `components/`: Langflow custom-component adapters. These remain for compatibility and are not replaced by this documentation.
 - `flows/`: preserved Langflow JSON exports for disaster recovery and historical use.
 - `docker/`: FastAPI/Langflow local container runtime.
-- `scripts/deploy-azure.ps1`: Azure Container Apps deployment automation entry point.
+- `infra/`: Azure Container Apps and supporting Bicep deployment definitions.
 
 ## Core Services
 
@@ -106,7 +104,7 @@ Service/provider abstractions
 Genesys | Ticket/Knowledge APIs | Artifact storage | optional queue/state providers
 ```
 
-For local use, Docker Compose runs FastAPI and Langflow with host/Compose mounts and named caches. For Azure, the deployment script provisions a Container Apps environment and application plus supporting image infrastructure. Production replicas require external state, artifact storage, and provider configuration.
+For local use, Docker Compose runs the FastAPI image with host/Compose mounts and named model caches. For Azure, the maintained Bicep path provisions infrastructure; the former manual deployment script is archived. Production replicas require external state, artifact storage, and provider configuration.
 
 ## Legacy Isolation Note
 

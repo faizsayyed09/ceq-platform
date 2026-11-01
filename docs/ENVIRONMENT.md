@@ -26,34 +26,9 @@ Secrets belong in `.env.local`, Docker local env files, platform secret stores, 
 | `HF_HOME` | No | Empty / Compose cache | Hugging Face cache directory | API, Docker, Langflow |
 | `PYTHONPATH` | Conditional | Empty locally; Compose sets `/app/ceq-components:/app` | Module/component import path | Docker, Langflow |
 
-## Docker and Langflow Variables
-
-| Variable | Required | Default | Purpose | Environment |
-|---|---:|---|---|---|
-| `LANGFLOW_IMAGE` | No | `langflowai/langflow:latest` | Compose Langflow image | Docker local |
-| `LANGFLOW_PORT` | No | `7860` | Host port for Langflow | Docker local |
-| `LANGFLOW_AUTO_LOGIN` | No | `true` | Enables local Langflow auto-login; not for production exposure | Docker local |
-| `LANGFLOW_SUPERUSER` | Conditional | `admin` | Langflow local superuser name | Docker local |
-| `LANGFLOW_SUPERUSER_PASSWORD` | Conditional for secured Langflow | Empty | Langflow local superuser password | Docker local |
-| `LANGFLOW_CONFIG_DIR` | No | `/app/langflow` | Langflow persistent configuration directory | Docker |
-| `LANGFLOW_COMPONENTS_PATH` | No | `/app/ceq-components` | Custom-component mount location | Docker/Langflow |
-
 ## Azure Variables
 
-The Azure deployment script accepts script parameters separately from runtime variables:
-
-| Script Parameter | Required | Default | Purpose |
-|---|---:|---|---|
-| `SubscriptionId` | Yes | None | Azure subscription |
-| `Location` | No | `eastus` | Resource location |
-| `ResourceGroup` | No | `rg-ceq-v2-dev` | Resource group |
-| `AcrName` | Yes | None | Globally unique Azure Container Registry name |
-| `ContainerAppEnvironment` | No | `cae-ceq-v2-dev` | Container Apps environment |
-| `ContainerApp` | No | `ca-ceq-v2-dev` | Container App name |
-| `ImageTag` | No | `v2-dev` | Built image tag |
-| `GenesysRegion` | No | `mypurecloud.com` | Genesys region injected into the app |
-| `GenesysClientId` | No | Empty | Optional Genesys client ID |
-| `GenesysClientSecret` | No | Empty | Optional Genesys client secret |
+Azure runtime configuration is supplied by Container Apps configuration and Key Vault/managed identity references. Host, folder, mission, and key values must remain environment-specific and must not be constants.
 
 ## Variable Rules
 
@@ -62,7 +37,6 @@ The Azure deployment script accepts script parameters separately from runtime va
 - `MAX_FILE_SIZE_MB` and `MAX_AUDIO_DURATION_SECONDS` should be positive and appropriate for platform memory/disk limits.
 - `GENESYS_REGION` must match an approved Genesys region allowlist value.
 - Production should use secret references rather than placing `GENESYS_CLIENT_SECRET` directly in ordinary environment files.
-- `LANGFLOW_AUTO_LOGIN=true` is for local development only.
 - `RECORDING_RETENTION_HOURS` should be validated if used by a future retention lifecycle; current workspaces should not assume it is automatically reconciled across providers.
 
 ## Example Local Files

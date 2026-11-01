@@ -1,5 +1,14 @@
 # Deployment Guide
 
+The maintained deployment path is:
+
+1. Docker image built from `docker/Dockerfile`.
+2. Local runtime from `docker/docker-compose.yml`.
+3. Azure infrastructure from `infra/main.bicep` and `infra/modules/*.bicep`.
+4. Release automation through `.github/workflows/release.yml` and `.github/workflows/ci.yml`.
+
+Manual PowerShell and duplicate ACR workflows are archived until parity is reviewed.
+
 ## Local FastAPI
 
 ```powershell
@@ -26,12 +35,11 @@ Copy-Item docker/.env.example docker/.env.local
 docker compose --env-file docker/.env.local -f docker/docker-compose.yml up --build
 ```
 
-Endpoints:
+Endpoint:
 
 - FastAPI: `http://127.0.0.1:8000`
-- Langflow: `http://127.0.0.1:7860`
 
-Docker Compose supplies persistent Langflow, Whisper, and Hugging Face volumes. Generated reports, audio, model files, credentials, PHI, and transcripts must not be committed.
+Docker Compose supplies persistent Whisper and Hugging Face volumes. Generated reports, audio, model files, credentials, PHI, and transcripts must not be committed.
 
 Before deployment, validate Compose in a Docker-capable environment:
 
@@ -45,27 +53,11 @@ docker compose --env-file docker/.env.example -f docker/docker-compose.yml up -d
 
 The Dockerfile uses a Python 3.12 runtime, installs ffmpeg, creates a non-root user, and starts Uvicorn on port 8000. The builder stage copies `requirements.txt`, and the runtime stage copies the application.
 
-Production images should be reproducible and vulnerability-scanned before release. The Compose Langflow image and package versions should be pinned or reviewed in release automation before production promotion.
+Production images should be reproducible and vulnerability-scanned before release. Dependency versions, model checksums, base-image digests, and release supply-chain evidence should be reviewed before production promotion.
 
 ## Azure Container Apps
 
-`scripts/deploy-azure.ps1` provides an initial Azure Container Registry and Azure Container Apps deployment workflow. Example:
-
-```powershell
-.\scripts\deploy-azure.ps1 `
-  -SubscriptionId "<subscription-id>" `
-  -AcrName "<globally-unique-acr-name>" `
-  -ResourceGroup "rg-ceq-v2-dev" `
-  -Location "eastus"
-```
-
-The script:
-
-1. Sets the subscription and creates the resource group.
-2. Creates Azure Container Registry and builds/pushes the image.
-3. Creates a Container Apps environment and application.
-4. Configures external ingress and port 8000.
-5. Uses a system-assigned identity for ACR pull.
+The former `scripts/deploy-azure.ps1` path is archived. The maintained infrastructure baseline is `infra/main.bicep`; deployment through it requires the target environment, managed identity, secret store, and production network configuration.
 
 ## Azure Readiness Gaps
 
