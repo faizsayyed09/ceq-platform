@@ -29,6 +29,7 @@ from services.knowledge import KnowledgeService
 from services.audit import AuditService
 from services.snow_prematch import SnowPrematchService
 from services.mcp_tools import ReadOnlyMcpTools
+from services.cutover import CutoverGateService
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -168,6 +169,17 @@ class McpJsonRpcRequest(BaseModel):
     params: dict[str, object] = Field(default_factory=dict, max_length=1000)
 
 
+class ShadowComparisonRequest(BaseModel):
+    matcha_status: str = Field(default="", max_length=100)
+    azure_status: str = Field(default="", max_length=100)
+    matcha_top_ticket: str | None = Field(default=None, max_length=100)
+    azure_top_ticket: str | None = Field(default=None, max_length=100)
+    matcha_score: float | None = None
+    azure_score: float | None = None
+    explained: bool = False
+    label: str = Field(default="", max_length=100)
+
+
 class AuditRequest(BaseModel):
     transcript: str = Field(..., max_length=500_000)
     ticket: dict[str, object] = Field(default_factory=dict)
@@ -196,8 +208,15 @@ class SnowPrematchRequest(BaseModel):
     top_n: int = Field(default=3, ge=1, le=5)
 
 
+class CutoverGateRequest(BaseModel):
+    cases: list[ShadowComparisonRequest] = Field(default_factory=list, max_length=10000)
+    phi_samples_checked: bool = False
+    rollback_tested: bool = False
+
+
 snow_prematch_service = SnowPrematchService()
 mcp_tools = ReadOnlyMcpTools()
+cutover_gate = CutoverGateService()
 
 
 @app.exception_handler(CeqError)
@@ -403,3 +422,44 @@ async def snow_prematch(payload: SnowPrematchRequest) -> dict[str, object]:
         top_n=payload.top_n,
         prematch_mode=settings.prematch_mode,
     )
+
+
+@app.post("/cutover/shadow-compare")
+async def cutover_shadow_compare(payload: ShadowComparisonRequest) -> dict[str, object]:
+    return cutover_gate.compare(
+        matcha_status=payload.matcha_status,
+        azure_status=payload.azure_status,
+        matcha_top_ticket=payload.matcha_top_ticket,
+        azure_top_ticket=payload.azure_top_ticket,
+        matcha_score=payload.matcha_score,
+        azure_score=payload.azure_score,
+    )
+
+
+@app.post("/cutover/gate")
+async def cutover_gate_evaluate(payload: CutoverGateRequest) -> dict[str, object]:
+    cases = []
+    for case in payload.cases:
+        comparison = cutover_gate.compare(
+            matcha_status=case.matcha_status,
+            azure_status=case.azure_status,
+            matcha_top_ticket=case.matcha_top_ticket,
+            azure_top_ticket=case.azure_top_ticket,
+            matcha_score=case.matcha_score,
+            azure_score=case.azure_score,
+        )
+        cases.append({
+            **comparison,
+            "explained": case.explained,
+            "label": case.label,
+        })
+    return cutover_gate.evaluate(
+        cases,
+        phi_samples_checked=payload.phi_samples_checked,
+        rollback_tested=payload.rollback_tested,
+    )
+
+
+@app.get("/cutover/status")
+async def cutover_status() -> dict[str, object]:
+    return cutover_gate.evaluate([], phi_samples_checked=False, rollback_tested=False)
