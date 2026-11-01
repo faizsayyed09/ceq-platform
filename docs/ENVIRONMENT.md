@@ -14,6 +14,9 @@ Secrets belong in `.env.local`, Docker local env files, platform secret stores, 
 | `GENESYS_CLIENT_SECRET` | Conditional | Empty | Genesys OAuth client secret | API, Langflow, Azure |
 | `ALLOW_MANUAL_TOKEN_TESTING` | No | `false` | Enables manual bearer tokens only in approved test environments | API, Langflow, Azure |
 | `PHI_PROTECTION_MODE` | No | `AUDIT_MODE` | One of `OFF`, `AUDIT_MODE`, `LLM_MODE`, `STRICT` | API, Langflow, Azure |
+| `PREMATCH_MODE` | No | `shadow` | One of `matcha`, `shadow`, `azure`; no cutover until the Phase 3 gate passes | API, Azure |
+| `PREMATCH_CACHE_ENABLED` | No | `false` | Reserved for the approved D12 cache implementation; the baseline stores refresh metadata only | API, Azure |
+| `PREMATCH_TOP_N` | No | `3` | Candidate count from 1 through 5 | API, Azure |
 | `MAX_FILE_SIZE_MB` | No | `500` | Maximum upload/download size | API, Docker, Azure |
 | `MAX_AUDIO_DURATION_SECONDS` | No | `14400` | Maximum transcribed audio duration | API, Docker, Azure |
 | `REPORT_DIR` | No | `generated_reports` locally | Local report/artifact directory; container default should be mounted externally | API, Docker |

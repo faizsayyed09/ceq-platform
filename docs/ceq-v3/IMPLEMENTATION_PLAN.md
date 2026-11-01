@@ -46,6 +46,7 @@ Spec: `AZURE_PREMATCH_SERVICE_SPEC.md`, boundary in `MATCHA_AZURE_BOUNDARY.md`.
 - **Shadow mode:** run beside the Matcha component for every audit; log both; review every disagreement. Switch values: `matcha`, `shadow`, `azure`.
 - **Cutover gate (Proposed):** no regression on a labelled set; every disagreement explained; zero PHI in sampled candidate payloads; rollback switch tested. The Matcha component stays deployed until the gate passes and for an agreed period after.
 - **Parallel track 3b:** ASR bake-off (`ASR_MODEL_EVALUATION.md`) behind an adapter, so the model can change without touching the job contract.
+- **Implementation status:** the authenticated `/snow/refresh`, `/snow/status`, and `/snow/prematch` API contracts are implemented with metadata-only refresh state, existing fingerprint/matcher reuse, LLM-mode candidate projection, idempotency, and `PREMATCH_MODE` shadow/rollback configuration. This is repository baseline code; D12-derived/cache approval, labelled parity, and production Matcha download credentials remain live cutover blockers. Status: Tested; 189 repository tests pass with 1 skipped, including focused pre-match/API coverage.
 
 ### Phase 4: PHI policy v2 (role-aware)
 Spec: `PHI_POLICY_V2.md`. Clinicians and staff are not PHI; caller identity lane before redaction; typed placeholders and flags.

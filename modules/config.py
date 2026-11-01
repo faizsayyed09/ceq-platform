@@ -27,6 +27,9 @@ class Settings:
     report_dir: str = os.getenv("REPORT_DIR", "generated_reports")
     allow_manual_token_testing: bool = os.getenv("ALLOW_MANUAL_TOKEN_TESTING", "false").lower() == "true"
     phi_protection_mode: str = os.getenv("PHI_PROTECTION_MODE", "AUDIT_MODE")
+    prematch_mode: str = os.getenv("PREMATCH_MODE", "shadow").lower()
+    prematch_cache_enabled: bool = os.getenv("PREMATCH_CACHE_ENABLED", "false").lower() == "true"
+    prematch_top_n: int = int(os.getenv("PREMATCH_TOP_N", "3"))
 
     genesys_client_id: str | None = os.getenv("GENESYS_CLIENT_ID") or None
     genesys_client_secret: str | None = os.getenv("GENESYS_CLIENT_SECRET") or None
