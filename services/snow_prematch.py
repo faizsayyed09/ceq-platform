@@ -143,7 +143,13 @@ class SnowPrematchService:
                 continue
             value = str(row[key] or "")
             if key in {"Short description", "Description"}:
-                result = PhiProtectionService("LLM_MODE").project(value)
+                result = PhiProtectionService("LLM_MODE").project_role_aware(
+                    value,
+                    source_field=key,
+                    source_track="",
+                    client_visible=key == "Description",
+                    mode="LLM_MODE",
+                )
                 projected[key] = result["text"]
                 types = list(result.get("phi_categories", []))
                 if types:

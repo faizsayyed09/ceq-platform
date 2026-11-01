@@ -8,6 +8,9 @@ from typing import Iterable
 from modules.exceptions import SecurityError, ValidationError
 
 
+PHI_POLICY_VERSION = "phi-v2.0-baseline"
+
+
 class PhiProtectionMode(str, Enum):
     OFF = "OFF"
     AUDIT_MODE = "AUDIT_MODE"
@@ -79,6 +82,84 @@ class PhiProtectionService:
             "findings": [{"category": finding.category, "start": finding.start, "end": finding.end} for finding in findings],
             "blocked": False,
             "phi_categories": categories,
+        }
+
+    def project_role_aware(
+        self,
+        text: str,
+        *,
+        source_field: str = "",
+        source_track: str = "",
+        client_visible: bool = False,
+        mode: str | PhiProtectionMode | None = None,
+    ) -> dict[str, object]:
+        """Baseline role-aware projection; SLM and Presidio stages remain separate blockers."""
+        if not isinstance(text, str):
+            raise ValidationError("PHI detection input must be text")
+
+        selected = self.normalize_mode(mode) if mode is not None else self.default_mode
+        workforce_field = str(source_field or "").strip().lower() in {
+            "requester", "contact", "opened_by", "opened by", "agent", "caller_name",
+        }
+        caller_track = str(source_track or "").strip().lower() == "caller"
+        self_introduction = bool(re.search(
+            r"(?i)\b(?:this is|my name is|i am|i'm)\b",
+            text,
+        ))
+        workforce_lane = workforce_field or (caller_track and self_introduction)
+
+        findings = [] if selected == PhiProtectionMode.OFF else self.detect(text)
+        if selected != PhiProtectionMode.OFF:
+            phone_pattern = re.compile(r"(?<!\w)(?:\+?1[- .]?)?(?:\(?\d{3}\)?[- .]\d{3}[- .]\d{4})(?!\w)")
+            for match in phone_pattern.finditer(text):
+                findings.append(PhiFinding(category="phone", value=match.group(0), start=match.start(), end=match.end()))
+            findings = sorted(findings, key=lambda item: (item.start, item.category))
+            priority = {"patient_account": 0, "mrn": 1, "phone": 2, "ssn": 3, "dob": 4, "encounter": 5, "patient_name": 6, "clinical_detail": 7}
+            findings = sorted(findings, key=lambda item: (item.start, priority.get(item.category, 99)))
+            specific = {finding.category for finding in findings if finding.category != "patient_name"}
+            if specific:
+                findings = [
+                    finding for finding in findings
+                    if finding.category != "patient_name" or not any(
+                        other.category != "patient_name"
+                        and finding.start < other.end
+                        and other.start < finding.end
+                        for other in findings
+                    )
+                ]
+            merged: list[PhiFinding] = []
+            for finding in findings:
+                if merged and finding.start < merged[-1].end:
+                    continue
+                merged.append(finding)
+            findings = merged
+        if workforce_lane:
+            findings = findings
+
+        categories = sorted({finding.category for finding in findings})
+        projected = text
+        if selected == PhiProtectionMode.LLM_MODE:
+            for finding in reversed(findings):
+                projected = projected[:finding.start] + f"[{finding.category.upper()}]" + projected[finding.end:]
+        elif selected == PhiProtectionMode.STRICT and findings:
+            raise SecurityError("PHI detected; operation blocked by STRICT protection mode")
+
+        residual = self.detect(projected) if selected != PhiProtectionMode.OFF else []
+        if residual and projected != text:
+            projected = "\n".join(part.strip() for part in re.split(r"(?<=[.!?])\s+", projected) if part.strip())
+
+        return {
+            "text": text if selected == PhiProtectionMode.AUDIT_MODE else projected,
+            "model_text": projected if selected != PhiProtectionMode.AUDIT_MODE else text,
+            "mode": selected.value,
+            "phi_policy_version": PHI_POLICY_VERSION,
+            "findings": [{"category": finding.category, "start": finding.start, "end": finding.end} for finding in findings],
+            "phi_categories": categories,
+            "phi_counts": {category: sum(1 for finding in findings if finding.category == category) for category in categories},
+            "client_visible": bool(client_visible),
+            "blocked": selected == PhiProtectionMode.STRICT and bool(findings),
+            "workforce_lane": workforce_lane,
+            "residual_phi": bool(residual),
         }
 
     def project_segments(self, segments: Iterable[dict[str, object]], mode: str | PhiProtectionMode | None = None) -> dict[str, object]:

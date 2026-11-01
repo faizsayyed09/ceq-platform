@@ -51,6 +51,7 @@ Spec: `AZURE_PREMATCH_SERVICE_SPEC.md`, boundary in `MATCHA_AZURE_BOUNDARY.md`.
 ### Phase 4: PHI policy v2 (role-aware)
 Spec: `PHI_POLICY_V2.md`. Clinicians and staff are not PHI; caller identity lane before redaction; typed placeholders and flags.
 - **Exit:** labelled corpus built; PHI recall and caller-name retention measured per entity type; targets signed off by the policy owner.
+- **Implementation status:** repository baseline now carries a policy-versioned, role-aware Python projection with caller-track/self-introduction, requester/contact/agent lane metadata, typed regex identifiers, counts-only flags, and verification-pass residue metadata. It preserves workforce names while redacting patient and identifier findings. Presidio, an encoded/decoder model, labelled recall/caller-retention targets, calibrated thresholds, and production cutover remain unresolved and blocked by the policy items below. Status: Tested; baseline unit coverage added, full-suite verification pending.
 
 ### Phase 5: KB lookup v2
 Spec: `KB_LOOKUP_V2_SPEC.md`. Router, two-stage search, cited-ID validation, code-side confidence, evaluation set.
