@@ -1,0 +1,21 @@
+{
+  "version": "v1-proposed",
+  "default_shard": "generic_other",
+  "planning_cap": 180,
+  "alert_at": 170,
+  "refuse_upload_at": 195,
+  "shards": [
+    {"shard_id":"marin_a","client_keys":["marin_general_a"],"aliases":["Marin General"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"marin_b","client_keys":["marin_general_b"],"aliases":["Marin General B Clinics","Marin General Ambulatory"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"generic_service_desk","client_keys":["generic_service_desk"],"aliases":["Service Desk"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"generic_other","client_keys":["generic_other"],"aliases":["Managed Services","Centralized Services"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"comanche","client_keys":["comanche"],"aliases":["Comanche"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"york","client_keys":["york"],"aliases":["York"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"suny","client_keys":["suny"],"aliases":["SUNY"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"daviess","client_keys":["daviess"],"aliases":["Daviess"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"k2","client_keys":["k2"],"aliases":["K2"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"wyckoff","client_keys":["wyckoff"],"aliases":["Wyckoff"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"monadnock","client_keys":["monadnock"],"aliases":["Monadnock"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180},
+    {"shard_id":"small_clients","client_keys":["small_clients","rome","tuba_city","wrightington","springhill"],"aliases":["Rome","Tuba City","Wrightington","Springhill"],"folder_id":null,"mission_id":null,"active":true,"article_count":0,"cap":180}
+  ]
+}
