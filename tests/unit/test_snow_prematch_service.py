@@ -1,0 +1,102 @@
+from datetime import datetime
+
+from api.main import app
+from fastapi.testclient import TestClient
+
+from modules.exceptions import ValidationError
+from services.snow_prematch import SnowPrematchService
+
+
+client = TestClient(app)
+
+
+def test_refresh_reports_metadata_without_ticket_content():
+    service = SnowPrematchService()
+    state = service.refresh({
+        "file_id": "123",
+        "updated_at": "2026-11-01T15:00:00+00:00",
+        "row_count": 72,
+        "export_rows": 72,
+        "coverage_start": "2026-10-29T15:00:00+00:00",
+        "sha256": "a" * 64,
+    })
+    status = service.status()
+
+    assert state.row_count == 72
+    assert status["refresh_state"] == "ready"
+    assert status["export_rows"] == 72
+    assert "ticket_text" not in status
+
+
+def test_refresh_rejects_invalid_sha256():
+    service = SnowPrematchService()
+    try:
+        service.refresh({"sha256": "not-a-sha256"})
+    except ValidationError:
+        return
+    raise AssertionError("Invalid sha256 was accepted")
+
+
+def test_prematch_returns_sanitized_projection_and_is_idempotent():
+    service = SnowPrematchService()
+    service.refresh({
+        "updated_at": "2026-11-01T15:30:00+00:00",
+        "export_rows": 1,
+        "coverage_start": "2026-10-29T15:30:00+00:00",
+    })
+    request = {
+        "conversation_id": "conversation-1",
+        "run_id": "run-1",
+        "transcript": "[00:00] CALLER: My ticket is INC123456 and patient name is John Smith",
+        "tickets": [{
+            "Number": "INC123456",
+            "Opened": "2026-11-01 14:30:00",
+            "Updated": "2026-11-01 15:00:00",
+            "State": "Active",
+            "Company": "Example",
+            "Short description": "Password reset",
+            "Description": "Patient name is John Smith needs reset",
+        }],
+        "call_start": "2026-11-01T14:00:00+00:00",
+        "call_end": "2026-11-01T15:00:00+00:00",
+        "top_n": 3,
+    }
+
+    first = service.prematch(prematch_mode="shadow", **request)
+    second = service.prematch(prematch_mode="azure", **request)
+
+    assert first["snow_status"] in {"MATCHED", "AMBIGUOUS", "NOT_FOUND"}
+    assert len(first["candidates"]) <= 3
+    assert second["_idempotency_key"] == first["_idempotency_key"]
+    assert "John Smith" not in str(first["candidates"])
+
+
+def test_snow_api_refresh_status_and_prematch():
+    refresh = client.post("/snow/refresh", json={
+        "file_id": "123",
+        "updated_at": "2026-11-01T15:30:00+00:00",
+        "row_count": 1,
+        "export_rows": 1,
+        "coverage_start": "2026-10-29T15:30:00+00:00",
+    })
+    assert refresh.status_code == 200
+    assert refresh.json()["refresh_state"] == "ready"
+
+    status = client.get("/snow/status")
+    assert status.status_code == 200
+    assert status.json()["export_rows"] == 1
+
+    prematch = client.post("/snow/prematch", json={
+        "conversation_id": "api-conversation",
+        "run_id": "api-run",
+        "transcript": "[00:00] CALLER: Ticket INC123456 password reset",
+        "tickets": [{
+            "Number": "INC123456",
+            "Opened": "2026-11-01 14:30:00",
+            "Description": "Password reset",
+        }],
+        "call_start": "2026-11-01T14:00:00+00:00",
+        "call_end": "2026-11-01T15:00:00+00:00",
+    })
+    assert prematch.status_code == 200
+    assert prematch.json()["prematch_engine_version"] == "azure-prematch-v1"

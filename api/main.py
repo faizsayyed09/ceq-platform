@@ -27,6 +27,7 @@ from services.report import ReportService
 from services.matching import FingerprintService, TicketMatchingService
 from services.knowledge import KnowledgeService
 from services.audit import AuditService
+from services.snow_prematch import SnowPrematchService
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -152,6 +153,30 @@ class AuditRequest(BaseModel):
     ticket: dict[str, object] = Field(default_factory=dict)
     knowledge_articles: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
     raw_result: str | dict[str, object] | None = None
+
+
+class SnowRefreshRequest(BaseModel):
+    file_id: str = Field(default="", max_length=255)
+    updated_at: str | None = Field(default=None, max_length=100)
+    sha256: str = Field(default="", max_length=64)
+    row_count: int = Field(default=0, ge=0)
+    export_rows: int = Field(default=0, ge=0)
+    coverage_start: str | None = Field(default=None, max_length=100)
+
+
+class SnowPrematchRequest(BaseModel):
+    conversation_id: str = Field(..., min_length=1, max_length=255)
+    run_id: str = Field(..., min_length=1, max_length=255)
+    transcript: str = Field(..., max_length=500_000)
+    tickets: list[dict[str, object]] = Field(default_factory=list, max_length=1000)
+    call_start: str | None = Field(default=None, max_length=100)
+    call_end: str | None = Field(default=None, max_length=100)
+    agent_names: list[str] = Field(default_factory=list, max_length=100)
+    agent_emails: list[str] = Field(default_factory=list, max_length=100)
+    top_n: int = Field(default=3, ge=1, le=5)
+
+
+snow_prematch_service = SnowPrematchService()
 
 
 @app.exception_handler(CeqError)
@@ -284,3 +309,30 @@ async def generate_report(payload: ReportRequest) -> dict[str, str]:
     store = LocalArtifactStore(settings.report_dir)
     service = ReportService(store)
     return await service.generate(payload.audit_id, payload.title, payload.body)
+
+
+@app.post("/snow/refresh")
+async def snow_refresh(payload: SnowRefreshRequest) -> dict[str, object]:
+    state = snow_prematch_service.refresh(payload.model_dump())
+    return snow_prematch_service.status()
+
+
+@app.get("/snow/status")
+async def snow_status() -> dict[str, object]:
+    return snow_prematch_service.status()
+
+
+@app.post("/snow/prematch")
+async def snow_prematch(payload: SnowPrematchRequest) -> dict[str, object]:
+    return snow_prematch_service.prematch(
+        conversation_id=payload.conversation_id,
+        run_id=payload.run_id,
+        transcript=payload.transcript,
+        tickets=payload.tickets,
+        call_start=payload.call_start,
+        call_end=payload.call_end,
+        agent_names=tuple(payload.agent_names),
+        agent_emails=tuple(payload.agent_emails),
+        top_n=payload.top_n,
+        prematch_mode=settings.prematch_mode,
+    )

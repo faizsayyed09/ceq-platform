@@ -67,6 +67,18 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
               value: 'AUDIT_MODE'
             }
             {
+              name: 'PREMATCH_MODE'
+              value: 'shadow'
+            }
+            {
+              name: 'PREMATCH_CACHE_ENABLED'
+              value: 'false'
+            }
+            {
+              name: 'PREMATCH_TOP_N'
+              value: '3'
+            }
+            {
               name: 'REPORT_DIR'
               value: '/app/generated_reports'
             }
