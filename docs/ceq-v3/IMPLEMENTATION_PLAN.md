@@ -56,6 +56,7 @@ Spec: `PHI_POLICY_V2.md`. Clinicians and staff are not PHI; caller identity lane
 ### Phase 5: KB lookup v2
 Spec: `KB_LOOKUP_V2_SPEC.md`. Router, two-stage search, cited-ID validation, code-side confidence, evaluation set.
 - **Exit:** hit rate at least equal to mission 47043 on the evaluation set; zero cross-client citations.
+- **Implementation status:** repository baseline adds shard routing through the controlled client map, query construction, run-scoped lookup caching, citation validation, agent `KA number` promotion, fallback status, and code-side confidence. Live shard Mission IDs and a two-stage Mission read/full-article provider are not configured. Status: Tested by repository unit coverage; production parity remains blocked on a Matcha service key, Mission IDs, and labelled evaluation data.
 
 ### Phase 6: MCP tools (optional)
 Read-only tools for analysts and the Teams bot (`kb_search`, `kb_get_article`, `snow_find_ticket`, `ceq_audit`). Writes need approval. The batch pipeline never calls MCP.
