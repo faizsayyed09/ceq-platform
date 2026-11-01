@@ -64,6 +64,8 @@ Read-only tools for analysts and the Teams bot (`kb_search`, `kb_get_article`, `
 
 ### Phase 7: Cutover and retirement
 Retire the Matcha pre-match component after the gate; retire the Azure workflow, dispatcher, matcher and knowledge providers per the ownership matrix. Retire mission 47043 after Phase 5.
+- **Implementation status:** Added repository-side shadow comparison and cutover gate endpoints. They expose disagreement classes, labels and gate checks, preserve the safe `shadow` default, and list retirement candidates without deleting or disabling any component. Because labelled replay data, policy owner approval and sampled candidate evidence are unavailable in repository state, the gate remains closed; rollback remains configuration value `matcha`.
+- **Documented:** `AZURE_PREMATCH_SERVICE_SPEC.md` section 8 requires two-path shadow evidence, disagreement review, one rollback switch and a gate of no regression, explained disagreements, zero PHI in sampled payloads and tested rollback. `MISSION_OWNERSHIP_MATRIX.md` requires that legacy, dispatcher and Mission components remain until replacement parity passes.
 
 ### Phase 8: Container release
 Spec: `DOCKER_PACKAGING_AND_PORTABILITY.md`. A portable image built last, from the finished service, with a documented list of prerequisites (network, secrets, volumes, configuration) and a preflight check. Requirements are tracked from Phase 3 so nothing is hard-coded to Azure.

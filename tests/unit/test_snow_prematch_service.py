@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from modules.exceptions import ValidationError
 from services.snow_prematch import SnowPrematchService
+from services.cutover import CutoverGateService
 
 
 client = TestClient(app)
@@ -100,3 +101,52 @@ def test_snow_api_refresh_status_and_prematch():
     })
     assert prematch.status_code == 200
     assert prematch.json()["prematch_engine_version"] == "azure-prematch-v1"
+
+
+def test_cutover_shadow_comparison_is_metadata_only():
+    service = CutoverGateService()
+    result = service.compare(
+        matcha_status="MATCHED",
+        azure_status="MATCHED",
+        matcha_top_ticket="INC123",
+        azure_top_ticket="INC123",
+        matcha_score=0.8,
+        azure_score=0.8,
+    )
+    assert result["disagreement_class"] == "same"
+
+    gate = service.evaluate([], phi_samples_checked=False, rollback_tested=False)
+    assert gate["gate_passed"] is False
+    assert gate["mode"] == "shadow"
+    assert gate["rollback_mode"] == "matcha"
+    assert all(item["eligible"] is False for item in gate["retirement"])
+
+
+def test_cutover_gate_stays_closed_until_all_evidence_exists():
+    service = CutoverGateService()
+    result = service.evaluate(
+        [{
+            "disagreement_class": "different_tickets",
+            "label": "INC123",
+            "explained": True,
+        }],
+        phi_samples_checked=True,
+        rollback_tested=True,
+    )
+    assert result["gate_passed"] is True
+    assert result["mode"] == "azure"
+
+
+def test_cutover_api_reports_closed_status_and_comparison():
+    status = client.get("/cutover/status")
+    assert status.status_code == 200
+    assert status.json()["gate_passed"] is False
+
+    comparison = client.post("/cutover/shadow-compare", json={
+        "matcha_status": "MATCHED",
+        "azure_status": "NOT_FOUND",
+        "matcha_top_ticket": "INC123",
+        "azure_top_ticket": None,
+    })
+    assert comparison.status_code == 200
+    assert comparison.json()["disagreement_class"] == "matcha_only"

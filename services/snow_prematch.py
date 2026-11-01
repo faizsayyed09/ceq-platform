@@ -15,6 +15,7 @@ from services.ticket_matching_service import (
     TicketMatchingService,
     TicketRow,
 )
+from services.phi_protection import PHI_POLICY_VERSION
 
 
 @dataclass(frozen=True)
@@ -120,7 +121,7 @@ class SnowPrematchService:
             "coverage_start": self.status().get("coverage_start") or None,
             "candidates": list(candidates),
             "prematch_engine_version": "azure-prematch-v1",
-            "phi_policy_version": "v2-reconciliation-pending",
+            "phi_policy_version": PHI_POLICY_VERSION,
             "cache_state": "disabled" if not self.status().get("sha256") else "metadata-only",
             "prematch_mode": prematch_mode if prematch_mode in {"matcha", "shadow", "azure"} else "shadow",
             "best_ticket": result.best_ticket,
