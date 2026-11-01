@@ -69,6 +69,7 @@ Retire the Matcha pre-match component after the gate; retire the Azure workflow,
 
 ### Phase 8: Container release
 Spec: `DOCKER_PACKAGING_AND_PORTABILITY.md`. A portable image built last, from the finished service, with a documented list of prerequisites (network, secrets, volumes, configuration) and a preflight check. Requirements are tracked from Phase 3 so nothing is hard-coded to Azure.
+- **Implementation status:** Added a role-aware container entrypoint and runtime preflight for `api`, `worker`, and `preflight`; production API startup/readiness fail closed when required service authentication or report storage is unavailable. Docker Compose and `/health/ready` now use readiness rather than liveness. The image remains release-gated until target-host confirmation (open item 13), model/dependency checksums, clean-host replay, supply-chain signing, and measured resources are available.
 - **Exit:** the image starts on a clean host using only its documented prerequisites; preflight passes; a replay of a synthetic call completes end to end.
 
 ## 4. Request budget (planning figures, not measured)

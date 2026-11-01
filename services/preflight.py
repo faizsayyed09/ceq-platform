@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import os
+import shutil
+import urllib.request
+import urllib.parse
+import urllib.error
+from pathlib import Path
+
+
+class RuntimePreflight:
+    def __init__(self, environment: dict[str, str] | None = None) -> None:
+        self.environment = environment if environment is not None else dict(os.environ)
+
+    def check_secret(self, name: str, *, required: bool) -> tuple[bool, str]:
+        value = self.environment.get(name)
+        file_name = self.environment.get(f"{name}_FILE")
+        if file_name:
+            path = Path(file_name)
+            if path.is_file():
+                return True, f"{name}_FILE readable"
+            return False, f"{name}_FILE unreadable" if required else f"optional {name}_FILE not set"
+        if value:
+            return True, f"{name} set"
+        return (False, f"{name} missing") if required else (True, f"{name} not configured")
+
+    def check_url(self, name: str, url: str | None) -> tuple[bool, str]:
+        if not url:
+            return True, f"{name} optional"
+        try:
+            parsed = urllib.parse.urlparse(url)
+        except Exception:
+            return False, f"{name} invalid"
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return False, f"{name} invalid"
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:
+                if response.status >= 500:
+                    return False, f"{name} unhealthy"
+        except (OSError, urllib.error.URLError):
+            return False, f"{name} host unreachable"
+        return True, f"{name} host reachable"
+
+    def run(self, *, role: str = "api") -> dict[str, object]:
+        checks: list[dict[str, object]] = []
+        if role not in {"api", "worker", "preflight"}:
+            checks.append({"name": "role", "passed": False, "detail": "unsupported role"})
+        else:
+            checks.append({"name": "role", "passed": True, "detail": role})
+
+        production = self.environment.get("APP_ENV", "development").lower() in {"production", "prod"}
+        passed, detail = self.check_secret("CEQ_API_SERVICE_TOKEN", required=production and role == "api")
+        checks.append({"name": "service authentication", "passed": passed, "detail": detail})
+
+        for command in ("ffmpeg", "ffprobe"):
+            available = shutil.which(command) is not None
+            checks.append({"name": command, "passed": available, "detail": "available" if available else "missing"})
+
+        report_dir = Path(self.environment.get("REPORT_DIR", "generated_reports"))
+        try:
+            report_dir.mkdir(parents=True, exist_ok=True)
+            writable = os.access(report_dir, os.W_OK)
+        except OSError:
+            writable = False
+        checks.append({"name": "report storage", "passed": writable, "detail": "writable" if writable else "not writable"})
+
+        matcha_url = self.environment.get("MATCHA_BASE_URL")
+        if matcha_url:
+            passed, detail = self.check_url("Matcha host", matcha_url)
+            checks.append({"name": "Matcha host", "passed": passed, "detail": detail})
+
+        passed = all(bool(check["passed"]) for check in checks)
+        return {
+            "role": role,
+            "passed": passed,
+            "checks": checks,
+        }

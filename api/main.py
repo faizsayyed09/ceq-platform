@@ -30,6 +30,7 @@ from services.audit import AuditService
 from services.snow_prematch import SnowPrematchService
 from services.mcp_tools import ReadOnlyMcpTools
 from services.cutover import CutoverGateService
+from services.preflight import RuntimePreflight
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -244,20 +245,19 @@ async def liveness() -> dict[str, str]:
 @app.get("/health/ready", include_in_schema=False)
 async def readiness() -> dict[str, str]:
     if settings.app_env.lower() in {"production", "prod"}:
-        if not settings.api_service_token:
+        preflight_environment = dict(os.environ)
+        preflight_environment["APP_ENV"] = settings.app_env
+        preflight_environment["REPORT_DIR"] = settings.report_dir
+        if settings.api_service_token:
+            preflight_environment["CEQ_API_SERVICE_TOKEN"] = settings.api_service_token
+        else:
+            preflight_environment.pop("CEQ_API_SERVICE_TOKEN", None)
+        result = RuntimePreflight(preflight_environment).run(role="api")
+        failed = [check["detail"] for check in result["checks"] if not check["passed"]]
+        if failed:
             return JSONResponse(
                 status_code=503,
-                content={"status": "not-ready", "reason": "service authentication is not configured"},
-            )
-        try:
-            report_path = Path(settings.report_dir)
-            report_path.mkdir(parents=True, exist_ok=True)
-            if not os.access(report_path, os.W_OK):
-                raise OSError("report directory is not writable")
-        except OSError:
-            return JSONResponse(
-                status_code=503,
-                content={"status": "not-ready", "reason": "artifact directory is not writable"},
+                content={"status": "not-ready", "reason": "runtime preflight failed", "failed_checks": failed},
             )
     return {"status": "ready"}
 

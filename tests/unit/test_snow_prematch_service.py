@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from modules.exceptions import ValidationError
 from services.snow_prematch import SnowPrematchService
 from services.cutover import CutoverGateService
+from services.preflight import RuntimePreflight
 
 
 client = TestClient(app)
@@ -135,6 +136,28 @@ def test_cutover_gate_stays_closed_until_all_evidence_exists():
     )
     assert result["gate_passed"] is True
     assert result["mode"] == "azure"
+
+
+def test_preflight_requires_service_token_only_in_production_api(tmp_path):
+    environment = {
+        "APP_ENV": "development",
+        "REPORT_DIR": str(tmp_path),
+    }
+    result = RuntimePreflight(environment).run(role="api")
+    token_check = next(
+        check for check in result["checks"]
+        if check["name"] == "service authentication"
+    )
+    assert token_check["passed"] is True
+
+    environment["APP_ENV"] = "production"
+    environment["CEQ_API_SERVICE_TOKEN"] = ""
+    result = RuntimePreflight(environment).run(role="api")
+    assert result["passed"] is False
+    assert any(
+        check["name"] == "service authentication" and not check["passed"]
+        for check in result["checks"]
+    )
 
 
 def test_cutover_api_reports_closed_status_and_comparison():
