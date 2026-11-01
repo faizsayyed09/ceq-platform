@@ -8,6 +8,7 @@ Secrets belong in `.env.local`, Docker local env files, platform secret stores, 
 |---|---:|---|---|---|
 | `APP_ENV` | No | `development` | Application environment label | API, Docker, Langflow, Azure |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity | API, Docker, Langflow, Azure |
+| `CEQ_API_SERVICE_TOKEN` | Production | Empty | Bearer token for service-to-service API authentication; also accepts `CEQ_API_SERVICE_TOKEN_FILE` | API, Docker, Azure |
 | `GENESYS_REGION` | Conditional | `mypurecloud.com` | Default Genesys API region | API, Langflow, Azure |
 | `GENESYS_CLIENT_ID` | Conditional | Empty | Genesys OAuth client ID | API, Langflow, Azure |
 | `GENESYS_CLIENT_SECRET` | Conditional | Empty | Genesys OAuth client secret | API, Langflow, Azure |

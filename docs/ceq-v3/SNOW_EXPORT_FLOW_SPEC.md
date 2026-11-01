@@ -2,6 +2,15 @@
 
 A new Power Automate flow, separate from the KB sync flow. It keeps exactly one SNOW export file in the Matcha mission folder and replaces it in place every hour. Behaviour only; no code.
 
+## 0. Repository implementation
+
+- Flow export location: `flows/power-automate/snow-export/`
+- Production validator: `validate_export.ts` (Office Script)
+- Test mirror: `scripts/validate_snow_export.py`
+- Test suite: `tests/unit/test_snow_export_validation.py`
+
+The flow, validator and mirror contain no secret values or production folder IDs. Configuration is resolved through secure flow inputs or environment/configuration storage. Folder and Mission defaults remain unconfirmed.
+
 ## 1. Goals and rules
 
 1. Exactly one file in the folder, always. No deletes in normal operation.

@@ -7,6 +7,7 @@ CEQ processes operational Service Desk data, audio recordings, transcripts, tick
 ## Secrets
 
 - Store credentials in environment variables, Azure Key Vault, Container Apps secrets, managed identity, or another approved secret provider.
+- Production API callers must use bearer service authentication. Configure `CEQ_API_SERVICE_TOKEN` or the `CEQ_API_SERVICE_TOKEN_FILE` mounted-file form.
 - Never commit client IDs used as secrets, client secrets, bearer tokens, API keys, passwords, audio, transcripts, or reports.
 - Keep manual Genesys bearer tokens disabled unless explicitly approved for testing through `ALLOW_MANUAL_TOKEN_TESTING=true`.
 - Production configuration should default manual testing to false and gate it independently from code defaults.

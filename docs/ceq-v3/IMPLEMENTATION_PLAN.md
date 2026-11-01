@@ -30,6 +30,8 @@ See the decision log in `00_INDEX.md` (D1 to D12). D12 (Azure derived cache of t
 
 ### Phase 1: Hourly SNOW export flow (Power Automate)
 Spec: `SNOW_EXPORT_FLOW_SPEC.md`. One permanent file, replaced in place; validate before replace; retries and alerts; settle wait; Azure refresh call; 72-hour window.
+- **Where it lives:** the SNOW flow is a new Power Automate flow, not part of the MDS (Langflow) flows. Store its export under `flows/power-automate/snow-export/` with secrets removed. The production validator is an Office Script (TypeScript) run by the flow; a test-time Python mirror of the same rules lives in `tests/` so the rules are tested on sample files.
+- **Before go-live:** the Matcha dispatcher can delete superseded or failed exports; disable that for the SNOW folder. Confirm which folder each component really uses (defaults say 31790 and 31536; the configured values are in the flow exports).
 - **Exit:** 24 consecutive successful hourly replacements; exactly one file in the folder; export age alert tested.
 
 ### Phase 2: KB sync hardening and per-client shards
