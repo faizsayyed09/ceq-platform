@@ -12,8 +12,8 @@
 ## Initial Setup
 
 ```powershell
-git switch transcriber-rewrite
-git pull --ff-only origin transcriber-rewrite
+git switch feature/ceq-v3-architecture
+git pull --ff-only origin feature/ceq-v3-architecture
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
@@ -53,7 +53,7 @@ For Compose Langflow, the repository mounts components, modules, services, flows
 
 ## Adding a Feature
 
-1. Start from `transcriber-rewrite` or an approved feature branch.
+1. Start from `feature/ceq-v3-architecture` or an approved feature branch.
 2. Add or update contracts before changing adapters when an API boundary changes.
 3. Implement reusable behavior in the service/provider layer.
 4. Keep route/component changes thin.
@@ -95,8 +95,8 @@ docker compose -f docker/docker-compose.yml down
 Use short-lived `feature/*`, `fix/*`, or `security/*` branches. Keep documentation-only cleanup commits separate where practical.
 
 ```powershell
-git switch transcriber-rewrite
-git pull --ff-only origin transcriber-rewrite
+git switch feature/ceq-v3-architecture
+git pull --ff-only origin feature/ceq-v3-architecture
 git switch -c docs/<topic>
 pytest -q tests
 git add README.md STATUS.md docs

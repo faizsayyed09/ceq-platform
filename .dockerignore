@@ -8,6 +8,10 @@ venv
 .env
 .generated_reports*
 generated_reports/*
+archive
+archive/*
+.pytest_cache
+**/__pycache__
 components
 flows
 docs/*.pdf

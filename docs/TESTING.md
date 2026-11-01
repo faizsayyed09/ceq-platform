@@ -1,5 +1,11 @@
 # Testing Guide
 
+```powershell
+python -m pytest -q
+```
+
+The baseline result is 204 passed and 1 skipped. Bytecode and `.pytest_cache` are generated artifacts and must not be committed.
+
 ## Test Command
 
 ```powershell

@@ -30,31 +30,6 @@ services:
       retries: 3
       start_period: 15s
 
-  langflow:
-    image: "${LANGFLOW_IMAGE:-langflowai/langflow:latest}"
-    ports:
-      - "${LANGFLOW_PORT:-7860}:7860"
-    env_file:
-      - ./.env.example
-      - path: ./.env.local
-        required: false
-    environment:
-      LANGFLOW_COMPONENTS_PATH: /app/ceq-components
-      PYTHONPATH: /app/ceq-components:/app
-      PYTHONDONTWRITEBYTECODE: "1"
-      HF_HOME: /app/cache/huggingface
-      WHISPER_MODEL_CACHE: /app/models/whisper
-    volumes:
-      - ../components:/app/ceq-components:ro
-      - ../modules:/app/modules:ro
-      - ../services:/app/services:ro
-      - ../flows:/app/flows:ro
-      - ../generated_reports:/app/generated_reports
-      - langflow_data:/app/langflow
-      - whisper_models:/app/models
-      - hf_cache:/app/cache/huggingface
-
 volumes:
-  langflow_data:
   whisper_models:
   hf_cache:
