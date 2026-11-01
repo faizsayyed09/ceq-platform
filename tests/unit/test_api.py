@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
+from dataclasses import replace
 
+import api.main as main
 from api.main import app
 
 client = TestClient(app)
@@ -45,3 +47,48 @@ def test_audit_route_with_parsed_result():
     })
     assert response.status_code == 200
     assert response.json()["audit_result"]["score"] == 96
+
+
+def test_production_requires_service_auth(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        main,
+        "settings",
+        replace(main.settings, app_env="production", api_service_token="test-service-token", report_dir=str(tmp_path)),
+    )
+
+    response = client.post("/ticket-match", json={
+        "transcript": "password reset for employee account",
+        "tickets": [{"ticket_id": "INC001", "description": "Employee password reset"}],
+        "threshold": 0.2,
+    })
+    assert response.status_code == 401
+
+
+def test_production_accepts_valid_service_auth(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        main,
+        "settings",
+        replace(main.settings, app_env="production", api_service_token="test-service-token", report_dir=str(tmp_path)),
+    )
+
+    response = client.post(
+        "/ticket-match",
+        headers={"Authorization": "Bearer test-service-token"},
+        json={
+            "transcript": "password reset for employee account",
+            "tickets": [{"ticket_id": "INC001", "description": "Employee password reset"}],
+            "threshold": 0.2,
+        },
+    )
+    assert response.status_code == 200
+
+
+def test_ready_reports_missing_production_auth(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        main,
+        "settings",
+        replace(main.settings, app_env="production", api_service_token=None, report_dir=str(tmp_path)),
+    )
+
+    response = client.get("/health/ready")
+    assert response.status_code == 503

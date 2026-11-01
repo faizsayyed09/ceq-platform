@@ -7,6 +7,9 @@ param location string = 'eastus'
 @secure()
 param registryPassword string
 
+@secure()
+param serviceApiToken string
+
 param registryUsername string
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -33,6 +36,7 @@ module app './modules/containerapp.bicep' = {
     registryServer: acr.outputs.loginServer
     registryUsername: registryUsername
     registryPassword: registryPassword
+    serviceApiToken: serviceApiToken
   }
 }
 

@@ -4,6 +4,7 @@ import os
 import tempfile
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+import hmac
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -68,6 +69,40 @@ def validate_genesys_region(region: str) -> str:
     return normalized
 
 app = FastAPI(title="CEQ Platform v2", version="2.0.0")
+
+
+@app.middleware("http")
+async def require_service_authentication(request: Request, call_next):
+    public_paths = {
+        "/health",
+        "/health/live",
+        "/health/ready",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    }
+    if request.url.path in public_paths or settings.app_env.lower() not in {"production", "prod"}:
+        return await call_next(request)
+
+    if not settings.api_service_token:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "ServiceAuthenticationError", "message": "Service authentication is not configured"},
+        )
+
+    authorization = request.headers.get("authorization", "")
+    scheme, separator, token = authorization.partition(" ")
+    if (
+        separator != " "
+        or scheme.lower() != "bearer"
+        or not hmac.compare_digest(token.strip(), settings.api_service_token)
+    ):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "ServiceAuthenticationError", "message": "Invalid service credentials"},
+        )
+
+    return await call_next(request)
 
 
 class HealthResponse(BaseModel):
@@ -143,6 +178,22 @@ async def liveness() -> dict[str, str]:
 
 @app.get("/health/ready", include_in_schema=False)
 async def readiness() -> dict[str, str]:
+    if settings.app_env.lower() in {"production", "prod"}:
+        if not settings.api_service_token:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not-ready", "reason": "service authentication is not configured"},
+            )
+        try:
+            report_path = Path(settings.report_dir)
+            report_path.mkdir(parents=True, exist_ok=True)
+            if not os.access(report_path, os.W_OK):
+                raise OSError("report directory is not writable")
+        except OSError:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not-ready", "reason": "artifact directory is not writable"},
+            )
     return {"status": "ready"}
 
 

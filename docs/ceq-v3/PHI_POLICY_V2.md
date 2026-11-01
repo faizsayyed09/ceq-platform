@@ -69,6 +69,8 @@ Your SLM and regex logic was not available to me (the original repo is not on th
 | J2 Clinical sentence | `CLINICAL_LINKED_TO_PERSON`, `CLINICAL_GENERIC`, `NOT_CLINICAL` |
 | J3 Recall sweep (optional) | Spans the other detectors missed (spoken or misheard identifiers, a name with no cue), each with a type |
 
+A generative model's self-reported confidence is poorly calibrated, and the existing detector returns none. If a confidence is used, calibrate it on the labelled corpus, or derive it from token probabilities or from agreement between two prompts; the evidence list and the asymmetry rule (4.3) carry more weight than any single number.
+
 Each answer also lists evidence drawn from a fixed set (`field_workforce`, `caller_self_id`, `patient_cue`, `id_proximity`, `clinical_context`, `none`). No explanation text is accepted, because free text can leak PHI and is a route for prompt injection.
 
 ### 4.3 Asymmetry rule (safety bias)
@@ -92,6 +94,10 @@ Transcripts and ticket text are untrusted: they may contain instructions. The SL
 
 Requirements: licence allows commercial use; weights baked into the image (no download at run time); pinned by checksum; runs on CPU within the memory budget measured together with the ASR model (the current 1 vCPU, 2 Gi container may not hold both at peak: measure, and split the PHI step into its own worker if needed). Typical load is small because only ambiguous spans and clinical sentences go to the SLM, and SNOW candidates are few (top 3 rows).
 
+### 4.5a Runtime
+
+The current detector reaches its model through an Ollama server at `127.0.0.1:11434` (see 4.8). A container has no such server unless one is added. Options: embed an inference runtime (llama.cpp or ONNX) in the image, or run a sidecar container. A few-billion-parameter model quantized to run on CPU needs on the order of gigabytes of memory, which does not fit beside the ASR model in 2 Gi: measure, and plan a separate PHI worker if needed.
+
 ### 4.6 Failure behaviour
 
 | Condition | Result |
@@ -104,6 +110,23 @@ Requirements: licence allows commercial use; weights baked into the image (no do
 ### 4.7 Versioning
 
 `phi_policy_version` covers the regex pack, the Presidio configuration, the SLM model checksum, the prompt, the thresholds and the corpus result it shipped with. Any change is a new version.
+
+### 4.8 Existing implementation
+
+| Area | What the code does today |
+|---|---|
+| `LocalSLMDetector` | Calls a local Ollama server; allowed models gemma3, qwen3, mistral-small, llama3.2 (default llama3.2); 30-second timeout; prompt asks for JSON spans with category, text and exact offset |
+| Categories | MRN, FIN, ENCOUNTER, DOB, SSN, INSURANCE_ID, PATIENT_ACCOUNT, DIAGNOSIS, MEDICATION, PATIENT_IDENTIFIER |
+| Confidence and threshold | None requested, none applied; output checked only for category, exact span text and offsets |
+| Filters | Phone-like spans dropped; spans near ticket, INC, KB, employee, extension, SNOW, phone, email, caller or agent context dropped; a patient name accepted only after a patient-name cue |
+| Titles and roles | Not modelled. No workforce detector; no caller-identity lane |
+| Unavailable model | Raises an error; no fail-safe redaction |
+| Regex engines | Two overlapping engines (core and v2), modes OFF, AUDIT_MODE, LLM_MODE, STRICT; no Presidio |
+| Strict mode | Redacts a capitalised name after caller, agent or patient, and redacts phone numbers and operational identifiers. |
+| Policy version | None |
+| Corpus and targets | None |
+
+Gaps against this document: no role-aware lane, no confidence or evidence fields, no asymmetry rule, no Presidio stage, no fail-safe, no version, no measurement. Reuse: the category list, exact-span validation, operational-context filters and patient-cue rule are sound implementation candidates for the replacement.
 
 ## 5. Where it runs
 

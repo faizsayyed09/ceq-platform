@@ -18,7 +18,7 @@ Goal: after the service is finished (Phase 8), produce one container image that 
 | System tools | FFmpeg and ffprobe |
 | Python runtime and dependencies | Pinned by lock file; hash-checked |
 | ASR | The chosen engine and model, pinned by checksum (faster-whisper `large-v3-turbo` today; Parakeet if the bake-off selects it) |
-| PHI | Presidio, the language model it needs, the classifier model, the regex pack, the policy version |
+| PHI | Presidio, the language model it needs, the classifier model, the regex pack, the policy version. The current SLM detector expects an Ollama server on `127.0.0.1:11434`: decide between an embedded runtime and a sidecar container, and bake the weights in either way (see `PHI_POLICY_V2.md` 4.5a) |
 | Application | API, job runner, pre-match service, adapters |
 | Notices | License file, SBOM, third-party attributions (including CC-BY-4.0 if Parakeet is used) |
 

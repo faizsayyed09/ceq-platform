@@ -9,6 +9,9 @@ param registryUsername string
 @secure()
 param registryPassword string
 
+@secure()
+param serviceApiToken string
+
 resource app 'Microsoft.App/containerApps@2026-01-01' = {
   name: 'ca-ceq-dev-api'
   location: location
@@ -36,6 +39,10 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
           name: 'acr-password'
           value: registryPassword
         }
+        {
+          name: 'ceq-api-service-token'
+          value: serviceApiToken
+        }
       ]
     }
 
@@ -62,6 +69,10 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
             {
               name: 'REPORT_DIR'
               value: '/app/generated_reports'
+            }
+            {
+              name: 'CEQ_API_SERVICE_TOKEN'
+              secretRef: 'ceq-api-service-token'
             }
           ]
 
