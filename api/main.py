@@ -28,6 +28,7 @@ from services.matching import FingerprintService, TicketMatchingService
 from services.knowledge import KnowledgeService
 from services.audit import AuditService
 from services.snow_prematch import SnowPrematchService
+from services.mcp_tools import ReadOnlyMcpTools
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -155,6 +156,18 @@ class KnowledgeLookupV2Request(BaseModel):
     product: str = Field(default="", max_length=500)
 
 
+class McpToolCallRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    arguments: dict[str, object] = Field(default_factory=dict, max_length=1000)
+
+
+class McpJsonRpcRequest(BaseModel):
+    jsonrpc: str = Field(default="2.0")
+    id: object | None = None
+    method: str = Field(..., min_length=1, max_length=100)
+    params: dict[str, object] = Field(default_factory=dict, max_length=1000)
+
+
 class AuditRequest(BaseModel):
     transcript: str = Field(..., max_length=500_000)
     ticket: dict[str, object] = Field(default_factory=dict)
@@ -184,6 +197,7 @@ class SnowPrematchRequest(BaseModel):
 
 
 snow_prematch_service = SnowPrematchService()
+mcp_tools = ReadOnlyMcpTools()
 
 
 @app.exception_handler(CeqError)
@@ -309,6 +323,42 @@ async def kb_lookup_v2(payload: KnowledgeLookupV2Request) -> dict[str, object]:
         issue_terms=payload.issue_terms,
         product=payload.product,
     )
+
+
+@app.get("/mcp/tools")
+async def mcp_tools_list() -> dict[str, object]:
+    return mcp_tools.list_tools()
+
+
+@app.post("/mcp/tools/call")
+async def mcp_tools_call(payload: McpToolCallRequest) -> dict[str, object]:
+    return mcp_tools.call(payload.name, payload.arguments)
+
+
+@app.post("/mcp")
+async def mcp_json_rpc(payload: McpJsonRpcRequest) -> dict[str, object]:
+    result: dict[str, object]
+    if payload.method == "initialize":
+        result = {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "ceq-readonly-tools", "version": "1.0.0"},
+        }
+    elif payload.method in {"tools/list", "tools.list"}:
+        result = mcp_tools.list_tools()
+    elif payload.method in {"tools/call", "tools.call"}:
+        name = str(payload.params.get("name") or "")
+        arguments = payload.params.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
+        result = mcp_tools.call(name, arguments)
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "id": payload.id,
+            "error": {"code": -32601, "message": "Method not found"},
+        }
+    return {"jsonrpc": "2.0", "id": payload.id, "result": result}
 
 
 @app.post("/audit")

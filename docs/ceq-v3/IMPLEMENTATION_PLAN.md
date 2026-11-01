@@ -60,6 +60,7 @@ Spec: `KB_LOOKUP_V2_SPEC.md`. Router, two-stage search, cited-ID validation, cod
 
 ### Phase 6: MCP tools (optional)
 Read-only tools for analysts and the Teams bot (`kb_search`, `kb_get_article`, `snow_find_ticket`, `ceq_audit`). Writes need approval. The batch pipeline never calls MCP.
+- **Implementation status:** a dependency-free read-only MCP JSON-RPC and REST tool baseline is added with the four allowlisted tools. Calls inherit service authentication in production. Batch jobs do not call MCP. KB article full content depends on supplied article data; Matcha/MCP hosting and live service-account ownership remain proposed. Status: Tested by repository unit coverage; no write actions are implemented.
 
 ### Phase 7: Cutover and retirement
 Retire the Matcha pre-match component after the gate; retire the Azure workflow, dispatcher, matcher and knowledge providers per the ownership matrix. Retire mission 47043 after Phase 5.
