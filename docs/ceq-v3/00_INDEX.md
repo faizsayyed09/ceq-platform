@@ -23,6 +23,7 @@ Evidence labels used everywhere: **Tested** (observed in a live test), **Documen
 | 13 | `SECURITY_OPERATIONS_AND_OPEN_ITEMS.md` | Keys, rotation, migration risk, alerts, runbooks, open items |
 | 14 | `ASR_MODEL_EVALUATION.md` | Whether to replace faster-whisper large-v3-turbo; bake-off plan |
 | 15 | `DOCKER_PACKAGING_AND_PORTABILITY.md` | Portable image: contents, configuration, network and secret prerequisites, release gate |
+| 16 | `../AZURE_MATCHAOS_DEPLOYMENT.md` | Azure resources, Power Automate ingestion, MatchaOS provider settings, and deployment/rollback instructions |
 
 ## What changed since the first set
 

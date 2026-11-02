@@ -1,3 +1,8 @@
+from dataclasses import replace
+
+import pytest
+
+import api.main as main
 from api.main import app
 from fastapi.testclient import TestClient
 
@@ -5,7 +10,12 @@ from modules.exceptions import ValidationError
 from services.mcp_tools import ReadOnlyMcpTools
 
 
-client = TestClient(app)
+client = TestClient(app, headers={"Authorization": "Bearer test-service-token"})
+
+
+@pytest.fixture(autouse=True)
+def configure_test_service_token(monkeypatch):
+    monkeypatch.setattr(main, "settings", replace(main.settings, api_service_token="test-service-token"))
 
 
 def test_mcp_tool_registry_has_only_read_only_allowlist():

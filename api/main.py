@@ -31,6 +31,7 @@ from services.snow_prematch import SnowPrematchService
 from services.mcp_tools import ReadOnlyMcpTools
 from services.cutover import CutoverGateService
 from services.preflight import RuntimePreflight
+from services.matchaos_provider import MatchaOsProvider
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -72,7 +73,13 @@ def validate_genesys_region(region: str) -> str:
         )
     return normalized
 
-app = FastAPI(title="CEQ Platform v2", version="2.0.0")
+app = FastAPI(
+    title="CEQ Platform v2",
+    version="2.0.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 
 @app.middleware("http")
@@ -81,11 +88,8 @@ async def require_service_authentication(request: Request, call_next):
         "/health",
         "/health/live",
         "/health/ready",
-        "/docs",
-        "/openapi.json",
-        "/redoc",
     }
-    if request.url.path in public_paths or settings.app_env.lower() not in {"production", "prod"}:
+    if request.url.path in public_paths:
         return await call_next(request)
 
     if not settings.api_service_token:
@@ -215,9 +219,25 @@ class CutoverGateRequest(BaseModel):
     rollback_tested: bool = False
 
 
+class MatchaOsCompletionRequest(BaseModel):
+    mission_id: str = Field(..., min_length=36, max_length=36)
+    input: str = Field(..., min_length=1, max_length=500_000)
+    timeout_seconds: float = Field(default=60.0, ge=1.0, le=300.0)
+
+
 snow_prematch_service = SnowPrematchService()
 mcp_tools = ReadOnlyMcpTools()
 cutover_gate = CutoverGateService()
+
+
+def matchaos_provider() -> MatchaOsProvider:
+    return MatchaOsProvider(
+        base_url=settings.matchaos_base_url or "",
+        api_key=settings.matchaos_api_key,
+        user_agent=settings.matcha_user_agent or "",
+        rate_limit_per_minute=settings.matchaos_rate_limit_per_minute,
+        timeout_seconds=60.0,
+    )
 
 
 @app.exception_handler(CeqError)
@@ -341,6 +361,20 @@ async def kb_lookup_v2(payload: KnowledgeLookupV2Request) -> dict[str, object]:
         sanitized_description=payload.sanitized_description,
         issue_terms=payload.issue_terms,
         product=payload.product,
+    )
+
+
+@app.get("/matchaos/models")
+async def matchaos_models() -> dict[str, object]:
+    return matchaos_provider().list_models()
+
+
+@app.post("/matchaos/completions")
+async def matchaos_completions(payload: MatchaOsCompletionRequest) -> dict[str, object]:
+    return matchaos_provider().complete_mission(
+        mission_id=payload.mission_id,
+        input_text=payload.input,
+        timeout_seconds=payload.timeout_seconds,
     )
 
 

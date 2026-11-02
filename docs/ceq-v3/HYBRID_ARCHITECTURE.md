@@ -6,7 +6,7 @@ Basis: the `transcriber-rewrite` repo contents, the Matcha reference documents, 
 
 | Area | Finding |
 |---|---|
-| Azure deployment | Container Apps app `ca-ceq-dev-api` in `rg-ceq-dev-eastus`, environment `cae-ceq-dev`, FastAPI, 1 CPU / 2 Gi, min 0 and max 1 replicas, external ingress, **no authentication**. `/health/ready` always returns ready. Outbound traffic leaves from a shared pool of about 300 addresses (not whitelistable). Tested/Observed. |
+| Azure deployment | Container Apps app `ca-ceq-dev-api` in `rg-ceq-dev-eastus`, environment `cae-ceq-dev`, FastAPI, 1 CPU / 2 Gi, min 0 and max 1 replicas. Ingress defaults to private and deployments set `APP_ENV=production`; bearer authentication is required outside public health endpoints. `/health/ready` reports preflight failures. Outbound traffic leaves from a shared pool of about 300 addresses (not whitelistable). Tested/Observed/Partially remediated. |
 | Matcha pipeline | The working audit chain is Langflow (MDS Studio): recording downloader, transcriber, fingerprint plus SNOW pre-match (deterministic), SNOW Mission, ticket gate, KB query, KB Mission, payload builder, CEQ Mission, audit result parser, report download, purge. It already follows "code guards, Missions judge". |
 | Azure `AuditWorkflowService` | Never calls a Mission; takes `ceq_response` as input; keeps run state in a Python dict; uses a naive matcher. An evidence assembler, not an orchestrator. |
 | Azure `DispatcherService` | In-memory state, no SNOW-freshness gate (the Matcha dispatcher has one). |
