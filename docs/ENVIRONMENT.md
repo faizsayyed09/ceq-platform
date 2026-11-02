@@ -8,6 +8,13 @@ Secrets belong in `.env.local`, Docker local env files, platform secret stores, 
 |---|---:|---|---|---|
 | `APP_ENV` | No | `development` | Application environment label | API, Docker, Langflow, Azure |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity | API, Docker, Langflow, Azure |
+| `MATCHA_BASE_URL` | Conditional | Empty | Matcha or MatchaOS host; legacy file operations and new Mission operations require the matching host/key pair | API, Docker, Power Automate, Azure |
+| `MATCHA_API_KEY` | Conditional | Empty | Matcha API key; also accepts `MATCHA_API_KEY_FILE`; never store in flow exports | API, Docker, Power Automate, Azure |
+| `MATCHA_USER_AGENT` | Conditional | Empty | Browser-style User-Agent required by Matcha file and Mission callers | API, Docker, Power Automate, Azure |
+| `SNOW_FOLDER_ID` | Conditional | Empty | Matcha folder or Mission-location identifier; no default until confirmed | Power Automate, Azure |
+| `SNOW_MISSION_ID` | Conditional | Empty | Matcha Mission used to read the permanent SNOW export | Power Automate, Azure |
+| `SNOW_FILE_ID` | Conditional | Empty | Permanent file ID returned by Matcha bootstrap; store in secure configuration | Power Automate |
+| `SNOW_FILENAME` | Phase 1 | Empty | Stable permanent export filename, without a path | Power Automate |
 | `CEQ_API_SERVICE_TOKEN` | Production | Empty | Bearer token for service-to-service API authentication; also accepts `CEQ_API_SERVICE_TOKEN_FILE` | API, Docker, Azure |
 | `GENESYS_REGION` | Conditional | `mypurecloud.com` | Default Genesys API region | API, Langflow, Azure |
 | `GENESYS_CLIENT_ID` | Conditional | Empty | Genesys OAuth client ID | API, Langflow, Azure |

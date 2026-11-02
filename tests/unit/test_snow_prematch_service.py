@@ -160,6 +160,25 @@ def test_preflight_requires_service_token_only_in_production_api(tmp_path):
     )
 
 
+def test_matcha_preflight_requires_key_and_browser_user_agent(tmp_path):
+    environment = {
+        "APP_ENV": "production",
+        "REPORT_DIR": str(tmp_path),
+        "MATCHA_BASE_URL": "https://example.invalid",
+    }
+    result = RuntimePreflight(environment).run(role="api")
+    key_check = next(
+        check for check in result["checks"]
+        if check["name"] == "Matcha API key"
+    )
+    user_agent_check = next(
+        check for check in result["checks"]
+        if check["name"] == "Matcha User-Agent"
+    )
+    assert key_check["passed"] is False
+    assert user_agent_check["passed"] is False
+
+
 def test_cutover_api_reports_closed_status_and_comparison():
     status = client.get("/cutover/status")
     assert status.status_code == 200

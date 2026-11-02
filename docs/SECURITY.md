@@ -9,6 +9,8 @@ CEQ processes operational Service Desk data, audio recordings, transcripts, tick
 - Store credentials in environment variables, Azure Key Vault, Container Apps secrets, managed identity, or another approved secret provider.
 - Production API callers must use bearer service authentication. Configure `CEQ_API_SERVICE_TOKEN` or the `CEQ_API_SERVICE_TOKEN_FILE` mounted-file form.
 - Never commit client IDs used as secrets, client secrets, bearer tokens, API keys, passwords, audio, transcripts, or reports.
+- Matcha keys must use `MATCHA_API_KEY_FILE` or an approved secret store. Never use a MatchaOS key for legacy file endpoints or a legacy key for MatchaOS.
+- Matcha callers must send an explicitly configured browser-style `MATCHA_USER_AGENT`; default HTTP client agents receive 403.
 - Keep manual Genesys bearer tokens disabled unless explicitly approved for testing through `ALLOW_MANUAL_TOKEN_TESTING=true`.
 - Production configuration should default manual testing to false and gate it independently from code defaults.
 - Sanitize exception messages, HTTP errors, logs, and API responses before returning data.
