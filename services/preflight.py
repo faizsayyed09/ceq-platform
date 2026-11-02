@@ -68,6 +68,14 @@ class RuntimePreflight:
         if matcha_url:
             passed, detail = self.check_url("Matcha host", matcha_url)
             checks.append({"name": "Matcha host", "passed": passed, "detail": detail})
+            key_passed, key_detail = self.check_secret("MATCHA_API_KEY", required=production)
+            checks.append({"name": "Matcha API key", "passed": key_passed, "detail": key_detail})
+            user_agent = self.environment.get("MATCHA_USER_AGENT")
+            checks.append({
+                "name": "Matcha User-Agent",
+                "passed": bool(user_agent and user_agent.strip()) or not production,
+                "detail": "configured" if user_agent and user_agent.strip() else "missing browser-style User-Agent",
+            })
 
         passed = all(bool(check["passed"]) for check in checks)
         return {

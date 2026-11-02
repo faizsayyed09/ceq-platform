@@ -22,6 +22,13 @@ class Settings:
     app_env: str = os.getenv("APP_ENV", "development")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     api_service_token: str | None = read_secret_file("CEQ_API_SERVICE_TOKEN")
+    matcha_base_url: str | None = os.getenv("MATCHA_BASE_URL") or None
+    matcha_api_key: str | None = read_secret_file("MATCHA_API_KEY")
+    matcha_user_agent: str | None = os.getenv("MATCHA_USER_AGENT") or None
+    snow_folder_id: str | None = os.getenv("SNOW_FOLDER_ID") or None
+    snow_mission_id: str | None = os.getenv("SNOW_MISSION_ID") or None
+    snow_file_id: str | None = os.getenv("SNOW_FILE_ID") or None
+    snow_filename: str | None = os.getenv("SNOW_FILENAME") or None
     max_file_size_mb: int = int(os.getenv("MAX_FILE_SIZE_MB", str(MAX_FILE_SIZE_MB)))
     max_audio_duration_seconds: int = int(os.getenv("MAX_AUDIO_DURATION_SECONDS", str(MAX_AUDIO_DURATION_SECONDS)))
     report_dir: str = os.getenv("REPORT_DIR", "generated_reports")

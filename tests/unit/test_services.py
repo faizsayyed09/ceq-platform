@@ -1,6 +1,7 @@
 from services.audit import AuditService
 from services.matching import FingerprintService, TicketMatchingService
 from services.knowledge import KnowledgeService
+from modules.config import read_secret_file
 
 
 def test_fingerprint_is_deterministic():
@@ -29,3 +30,11 @@ def test_knowledge_search():
 def test_audit_result_parser_score():
     result = AuditService().parse_result('{"score": 96, "findings": []}')
     assert result["score"] == 96
+
+
+def test_matcha_api_key_can_be_read_from_mounted_file(tmp_path, monkeypatch):
+    secret_path = tmp_path / "matcha.key"
+    secret_path.write_text("test-only-key\n", encoding="utf-8")
+    monkeypatch.setenv("MATCHA_API_KEY_FILE", str(secret_path))
+    monkeypatch.delenv("MATCHA_API_KEY", raising=False)
+    assert read_secret_file("MATCHA_API_KEY") == "test-only-key"
