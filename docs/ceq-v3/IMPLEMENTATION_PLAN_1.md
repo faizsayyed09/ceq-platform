@@ -9,7 +9,7 @@ Scope: Matcha stays the intelligence layer; Azure is compute, cache and PHI proc
 | Legacy file API works with an `mk_live_` key: list, download, upload, in-place replace, delete. | Tested |
 | It works from a PC, Azure Cloud Shell and inside `ca-ceq-dev-api`. Python's default User-Agent gets 403; a browser-style one gets 200. | Tested |
 | In-place replace keeps file ID and filename; new content is downloadable at the first probe; `updated_at` changes up to three times in about 20 seconds, then settles. | Tested |
-| The new MatchaOS API has no file endpoints; `mk_live_` and `mos_sk_live_` keys do not cross over. | Tested |
+| MatchaOS folder/file lifecycle routes are available for create, list, upload, and delete; download and replacement remain untested. `mk_live_` and `mos_sk_live_` keys do not cross over. | Tested |
 | New key limit 120 per minute (fixed window consistent); daily limit unknown. Legacy documented 500 per minute and 2,000 per day. | Tested / Documented |
 | Legacy and new environments are not synced. Prompts exist in the new environment; files do not. | Tested / reported |
 | Container Apps outbound addresses are a shared pool of about 300; the key had no IP restriction. | Tested |

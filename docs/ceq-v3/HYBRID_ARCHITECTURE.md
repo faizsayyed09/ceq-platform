@@ -75,7 +75,7 @@ Principle: **Matcha decides, Azure processes.** Azure holds no authoritative SNO
 
 | Fact | Status |
 |---|---|
-| Legacy API has file endpoints (list, download, upload, in-place replace, delete); the new API does not. | Tested |
+| Legacy API has file endpoints (list, download, upload, in-place replace, delete). MatchaOS has tested folder/file create, list, upload, and delete routes; MatchaOS download/replacement behavior remains untested. | Tested |
 | `mk_live_` keys work only on the legacy host; `mos_sk_live_` keys work only on the new host. | Tested |
 | The new environment is not synced with the legacy one: a mission folder created there is empty and has no integer IDs. Prompts did migrate (the new SNOW mission answered with the ticket-match JSON). | Tested (user report plus one completion) |
 | New key limit: 120 requests per minute, consistent with a fixed 60-second window anchored on the first request. Daily limit unknown. | Tested |

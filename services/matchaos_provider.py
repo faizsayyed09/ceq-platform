@@ -5,6 +5,7 @@ import time
 from collections import deque
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any, Mapping
 
 import requests
@@ -38,7 +39,8 @@ class MatchaOsProvider:
         if rate_limit_per_minute < 1 or rate_limit_per_minute > 120:
             raise ValidationError("MatchaOS rate limit must be between 1 and 120")
 
-        self.base_url = base_url.rstrip("/") + "/api"
+        base_url = base_url.rstrip("/")
+        self.base_url = base_url if base_url.endswith("/api") else base_url + "/api"
         self.api_key = api_key
         self.user_agent = user_agent
         self.rate_limit_per_minute = rate_limit_per_minute
@@ -71,12 +73,141 @@ class MatchaOsProvider:
         )
         return response.json()
 
+    def list_missions(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        response = self._request(
+            "GET",
+            "/v1/missions",
+            params={"limit": limit, "offset": offset},
+            timeout_seconds=timeout_seconds,
+        )
+        return response.json()
+
+    def list_folders(
+        self,
+        *,
+        mission_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        mission_id = mission_id.strip()
+        if not mission_id:
+            raise ValidationError("mission_id is required")
+        response = self._request(
+            "GET",
+            f"/v1/missions/{mission_id}/folders",
+            params={"limit": limit, "offset": offset},
+            timeout_seconds=timeout_seconds,
+        )
+        return response.json()
+
+    def create_folder(
+        self,
+        *,
+        mission_id: str,
+        name: str,
+        description: str = "",
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        mission_id = mission_id.strip()
+        name = name.strip()
+        if not mission_id:
+            raise ValidationError("mission_id is required")
+        if not name:
+            raise ValidationError("folder name is required")
+        response = self._request(
+            "POST",
+            f"/v1/missions/{mission_id}/folders",
+            json={"name": name, "description": description},
+            timeout_seconds=timeout_seconds,
+        )
+        return response.json()
+
+    def delete_folder(
+        self,
+        *,
+        folder_id: str,
+        timeout_seconds: float | None = None,
+    ) -> requests.Response:
+        folder_id = folder_id.strip()
+        if not folder_id:
+            raise ValidationError("folder_id is required")
+        return self._request(
+            "DELETE",
+            f"/v1/folders/{folder_id}",
+            timeout_seconds=timeout_seconds,
+        )
+
+    def list_files(
+        self,
+        *,
+        folder_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        folder_id = folder_id.strip()
+        if not folder_id:
+            raise ValidationError("folder_id is required")
+        response = self._request(
+            "GET",
+            f"/v1/folders/{folder_id}/files",
+            params={"limit": limit, "offset": offset},
+            timeout_seconds=timeout_seconds,
+        )
+        return response.json()
+
+    def upload_file(
+        self,
+        *,
+        folder_id: str,
+        file_path: str | Path,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        folder_id = folder_id.strip()
+        if not folder_id:
+            raise ValidationError("folder_id is required")
+        path = Path(file_path)
+        if not path.is_file():
+            raise ValidationError("file_path must refer to an existing file")
+        with path.open("rb") as file_handle:
+            response = self._request(
+                "POST",
+                f"/v1/folders/{folder_id}/files",
+                files={"file": (path.name, file_handle)},
+                timeout_seconds=timeout_seconds,
+            )
+        return response.json()
+
+    def delete_file(
+        self,
+        *,
+        file_id: str,
+        timeout_seconds: float | None = None,
+    ) -> requests.Response:
+        file_id = file_id.strip()
+        if not file_id:
+            raise ValidationError("file_id is required")
+        return self._request(
+            "DELETE",
+            f"/v1/files/{file_id}",
+            timeout_seconds=timeout_seconds,
+        )
+
     def _request(
         self,
         method: str,
         path: str,
         *,
         json: Mapping[str, Any] | None = None,
+        params: Mapping[str, Any] | None = None,
+        files: Mapping[str, Any] | None = None,
         timeout_seconds: float | None = None,
     ) -> requests.Response:
         self._wait_for_rate_slot()
@@ -93,6 +224,8 @@ class MatchaOsProvider:
                     self.base_url + path,
                     headers=headers,
                     json=json,
+                    params=params,
+                    files=files,
                     timeout=timeout_seconds or self.timeout_seconds,
                 )
                 if response.status_code == 429:

@@ -10,6 +10,7 @@ Changes of direction, in order (the later one wins):
 5. KB lookup: the single KB mission hit the 200-file cap. Move to about 12 per-client missions with a code router and one parameterized Power Automate flow; two-stage lookup (search, then read chosen articles in full); confidence computed in code.
 6. Speech recognition: faster-whisper large-v3-turbo is under review against Parakeet TDT 0.6B v3; decide by a bake-off on real calls, behind an adapter (ASR_MODEL_EVALUATION.md).
 7. The final service must ship as a portable container image with documented prerequisites (DOCKER_PACKAGING_AND_PORTABILITY.md), built last (Phase 8).
+8. MatchaOS Mission folder/file create, list, upload, and delete routes are live-tested. Download, replacement, and indexing behavior remain untested; Azure storage remains authoritative.
 
 Things the owner cares about most: ticket matching must not fail because a caller is a clinician; no duplicate or confusing SNOW files; audits must finish before data is replaced; no secrets in repos or flow exports; everything environment-specific is configuration so we can move to the new MatchaOS later.
 
