@@ -11,6 +11,16 @@ Secrets belong in `.env.local`, Docker local env files, platform secret stores, 
 | `MATCHA_BASE_URL` | Conditional | Empty | Matcha or MatchaOS host; legacy file operations and new Mission operations require the matching host/key pair | API, Docker, Power Automate, Azure |
 | `MATCHA_API_KEY` | Conditional | Empty | Matcha API key; also accepts `MATCHA_API_KEY_FILE`; never store in flow exports | API, Docker, Power Automate, Azure |
 | `MATCHA_USER_AGENT` | Conditional | Empty | Browser-style User-Agent required by Matcha file and Mission callers | API, Docker, Power Automate, Azure |
+| `MATCHAOS_BASE_URL` | Conditional | Empty | MatchaOS origin; must be HTTPS and must not be used for legacy file routes | API, Docker, Azure |
+| `MATCHAOS_API_KEY` | Conditional | Empty | MatchaOS API key; also accepts `MATCHAOS_API_KEY_FILE`; key family must begin with `mos_sk_live_` | API, Docker, Azure |
+| `MATCHAOS_MODEL` | Conditional | Empty | Optional default model for MatchaOS completions | API, Docker, Azure |
+| `MATCHAOS_RATE_LIMIT_PER_MINUTE` | No | `120` | Conservative client-side rolling request limit; must not exceed confirmed provider limits | API, Docker, Azure |
+| `AZURE_STORAGE_ACCOUNT_URL` | Conditional | Empty | Blob Storage account endpoint used for authoritative source/evidence storage | API, Docker, Azure |
+| `AZURE_BLOB_SNOW_CONTAINER` | No | `snow` | Private container for current/archived SNOW exports | API, Power Automate, Azure |
+| `AZURE_BLOB_KB_CONTAINER` | No | `ceq-kb` | Private container for KB source articles | API, Power Automate, Azure |
+| `AZURE_BLOB_EVIDENCE_CONTAINER` | No | `evidence` | Private container for approved audit evidence | API, Docker, Azure |
+| `AZURE_SEARCH_ENDPOINT` | Conditional | Empty | Azure AI Search endpoint for KB hybrid retrieval | API, Worker, Azure |
+| `AZURE_SEARCH_INDEX` | No | `ceq-kb` | Tenant/client-scoped KB index name | API, Worker, Azure |
 | `SNOW_FOLDER_ID` | Conditional | Empty | Matcha folder or Mission-location identifier; no default until confirmed | Power Automate, Azure |
 | `SNOW_MISSION_ID` | Conditional | Empty | Matcha Mission used to read the permanent SNOW export | Power Automate, Azure |
 | `SNOW_FILE_ID` | Conditional | Empty | Permanent file ID returned by Matcha bootstrap; store in secure configuration | Power Automate |

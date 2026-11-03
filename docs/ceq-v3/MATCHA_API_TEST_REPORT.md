@@ -1,4 +1,4 @@
-# MATCHA_API_TEST_REPORT (2026-10-31 to 2026-11-01)
+# MATCHA_API_TEST_REPORT (2026-10-31 to 2026-11-03)
 
 All tests ran from your side because my sandbox cannot reach Matcha (CONNECT 403). Keys, folder contents and identifiers are omitted or shortened. Times are Eastern.
 
@@ -16,10 +16,11 @@ All tests ran from your side because my sandbox cannot reach Matcha (CONNECT 403
 | T8 | Container Apps network inspection | Cloud Shell | Shared outbound pool of about 300 addresses; environment static IP separate; min replicas 0, max 1 | An IP allow-list is not an option without a NAT gateway |
 | T9 | Listing with an empty folder ID | PC | HTTP 500 | Always validate IDs; the API does not return 400 |
 | T10 | New key on `GET /api/v1/models` | PC | 200, 21 models | New key authenticates |
-| T11 | Legacy file route on the new host | PC | 404 "Unknown route" | **New API has no file endpoints** |
+| T11 | Legacy `/files` route on the new host | PC | 404 "Unknown route" | The legacy route was not sufficient; folder/file Mission routes discovered later were tested separately |
 | T12 | New key on the legacy host | PC | 401 | Keys do not cross over |
 | T13 | `POST /api/v1/completions` on the new SNOW mission (empty folder) | PC | 200; mission persona answered with the ticket-match JSON (`NOT_FOUND`); model reported `gemini-3.8-flash`; `sources` empty | Prompts migrated; Missions endpoint works; the answer is a JSON string inside `text` |
 | T14 | Five calls, 60-second wait, one more | PC | Remaining 119 (first call), 118, 117, 116, then 119, then 119 after the wait | Limit 120 per minute; window did not slide gradually (a token bucket would have refilled before the second call); consistent with a fixed 60-second window from the first request |
+| T15 | MatchaOS mission folder listing, completion, folder/file lifecycle | PC | Tested: mission folders listed; completion returned READY; synthetic folder created; file uploaded with HTTP 201; file and folder deleted; both GET lookups returned 404 | UUID-based Mission folders and files are supported by live routes |
 
 ## 2. Replace-in-place detail (T3)
 
@@ -40,6 +41,8 @@ Consequences: freshness is `updated_at`, not the filename; treat the export as s
 - File size and row count of the real export; the 60 MB replace limit.
 - Behaviour when Matcha is down mid-replace.
 - Whether per-client missions and prompts can be created through an API.
+- MatchaOS file download and replacement endpoints.
+- Re-indexing behavior and completion latency after MatchaOS upload or replacement.
 
 ## 4. Commands (without secrets)
 
@@ -57,7 +60,7 @@ Clean up afterwards: `Remove-Item Env:MATCHA_API_KEY` and delete test keys in Ma
 ## 5. Findings that changed the design
 
 1. A browser-style User-Agent is mandatory for Azure calls.
-2. File work must stay on the legacy environment until Matcha confirms file endpoints in the new one.
+2. MatchaOS folder/file lifecycle is now proven for create, list, upload, and delete; legacy file replace/download behavior remains separately relevant until its replacement/download paths are proven in MatchaOS.
 3. Replace in place is reliable, so one permanent file replaces the delete-and-upload pattern.
 4. 120 per minute on the new key, with the daily limit unknown, forces a client-side limiter and a request budget.
 5. An IP allow-list is not available, so authentication, not network position, protects Azure and Matcha access.

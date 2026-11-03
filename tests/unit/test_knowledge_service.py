@@ -10,6 +10,7 @@ from contracts.knowledge import (
 )
 from modules.exceptions import ValidationError
 from services.knowledge import KnowledgeService
+from providers.knowledge import AzureAISearchProvider
 
 
 class MockKnowledgeProvider:
@@ -86,6 +87,25 @@ def test_provider_abstraction_and_search_request():
     assert result.provider == "mock"
     assert provider.request.limit == 5
     assert provider.request.query.issue_summary == "password reset"
+
+
+def test_azure_search_provider_managed_identity_header():
+    class Token:
+        token = "search-token"
+
+    class Credential:
+        def get_token(self, scope):
+            assert scope == "https://search.azure.com/.default"
+            return Token()
+
+    provider = AzureAISearchProvider(
+        "https://search.search.windows.net",
+        api_key=None,
+        index_name="ceq-kb",
+        credential=Credential(),
+    )
+    headers = provider._headers()
+    assert headers["Authorization"] == "Bearer search-token"
 
 
 def test_invalid_search_inputs_are_rejected():

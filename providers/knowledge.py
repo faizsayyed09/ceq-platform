@@ -69,19 +69,31 @@ class ServiceNowProvider:
 class AzureAISearchProvider:
     name = "azure_ai_search"
 
-    def __init__(self, endpoint: str, api_key: str, index_name: str, api_version: str = "2024-07-01", timeout_seconds: float = 30.0) -> None:
+    def __init__(self, endpoint: str, api_key: str | None = "", index_name: str = "", api_version: str = "2024-07-01", timeout_seconds: float = 30.0, credential: Any | None = None) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.api_key = api_key
         self.index_name = index_name
         self.api_version = api_version
         self.timeout_seconds = timeout_seconds
+        self.credential = credential
+
+    def _headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["api-key"] = self.api_key
+        else:
+            if self.credential is None:
+                from azure.identity import DefaultAzureCredential
+                self.credential = DefaultAzureCredential()
+            headers["Authorization"] = "Bearer " + self.credential.get_token("https://search.azure.com/.default").token
+        return headers
 
     def search(self, request: KnowledgeSearchRequest) -> KnowledgeSearchResult:
         url = self.endpoint + "/indexes/" + self.index_name + "/docs/search"
         response = requests.post(
             url,
             params={"api-version": self.api_version},
-            headers={"Content-Type": "application/json", "api-key": self.api_key},
+            headers=self._headers(),
             json={"search": request.query.issue_summary, "top": request.limit},
             timeout=self.timeout_seconds,
         )

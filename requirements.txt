@@ -10,3 +10,4 @@ aiofiles==24.1.0
 orjson==3.10.18
 pytest==8.3.5
 httpx==0.28.1
+azure-identity==1.25.1

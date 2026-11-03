@@ -77,6 +77,20 @@ class RuntimePreflight:
                 "detail": "configured" if user_agent and user_agent.strip() else "missing browser-style User-Agent",
             })
 
+        matchaos_url = self.environment.get("MATCHAOS_BASE_URL")
+        if matchaos_url:
+            passed, detail = self.check_url("MatchaOS host", matchaos_url)
+            checks.append({"name": "MatchaOS host", "passed": passed, "detail": detail})
+            key_passed, key_detail = self.check_secret("MATCHAOS_API_KEY", required=production)
+            if key_passed:
+                key_value = self.environment.get("MATCHAOS_API_KEY")
+                file_name = self.environment.get("MATCHAOS_API_KEY_FILE")
+                if file_name and Path(file_name).is_file():
+                    key_value = Path(file_name).read_text(encoding="utf-8").strip()
+                key_passed = bool(key_value and key_value.startswith("mos_sk_live_"))
+                key_detail = "MatchaOS key family accepted" if key_passed else "legacy or unrecognized key family"
+            checks.append({"name": "MatchaOS API key", "passed": key_passed, "detail": key_detail})
+
         passed = all(bool(check["passed"]) for check in checks)
         return {
             "role": role,

@@ -1,15 +1,23 @@
 from datetime import datetime
+from dataclasses import replace
 
 from api.main import app
 from fastapi.testclient import TestClient
+import pytest
 
+import api.main as main
 from modules.exceptions import ValidationError
 from services.snow_prematch import SnowPrematchService
 from services.cutover import CutoverGateService
 from services.preflight import RuntimePreflight
 
 
-client = TestClient(app)
+client = TestClient(app, headers={"Authorization": "Bearer test-service-token"})
+
+
+@pytest.fixture(autouse=True)
+def configure_test_service_token(monkeypatch):
+    monkeypatch.setattr(main, "settings", replace(main.settings, api_service_token="test-service-token"))
 
 
 def test_refresh_reports_metadata_without_ticket_content():

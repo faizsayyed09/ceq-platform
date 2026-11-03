@@ -4,10 +4,15 @@ import hashlib
 import json
 import os
 import re
+import asyncio
+import xml.etree.ElementTree as ElementTree
 from collections.abc import AsyncIterable, Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import quote
+
+import requests
 
 from contracts.artifact import ArtifactDownloadLink, ArtifactKey, ArtifactMetadata
 from modules.exceptions import (
@@ -222,30 +227,200 @@ def _metadata_from_dict(payload: dict[str, Any]) -> ArtifactMetadata:
 
 
 class AzureBlobArtifactProvider:
-    """Interface-only Azure Blob provider; SDK integration is intentionally deferred."""
+    """Azure Blob provider using managed identity for runtime authentication."""
 
     provider_name = "azure_blob"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.configuration = dict(kwargs)
+        self.account_url = str(kwargs.get("account_url") or kwargs.get("endpoint") or "").rstrip("/")
+        self.container = str(kwargs.get("container") or "")
+        self.credential = kwargs.get("credential")
+        if self.container and not re.fullmatch(r"[a-z0-9](?!.*--)[a-z0-9-]{1,61}[a-z0-9]", self.container.lower()):
+            raise ArtifactValidationError("Invalid Azure Blob container name")
+        validate_container_url = quote(self.container, safe="")
+        self.container_url = f"{self.account_url}/{validate_container_url}"
+
+    def _require_configuration(self) -> None:
+        if not self.account_url or not self.container:
+            raise NotImplementedError("Azure Blob artifact storage is not configured")
+
+    def _token(self) -> str:
+        if self.credential is None:
+            from azure.identity import DefaultAzureCredential
+            self.credential = DefaultAzureCredential()
+        return self.credential.get_token("https://storage.azure.com/.default").token
+
+    def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        headers = {
+            "Authorization": f"Bearer {self._token()}",
+            "x-ms-date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT"),
+            "x-ms-version": "2024-11-04",
+        }
+        if extra:
+            headers.update(extra)
+        return headers
+
+    def _blob_url(self, key: ArtifactKey) -> str:
+        validate_artifact_key(key)
+        return f"{self.container_url}/{quote(key.as_posix(), safe='/')}"
 
     async def save(self, key: ArtifactKey, data: bytes | Iterable[bytes] | AsyncIterable[bytes], *, metadata: ArtifactMetadata) -> ArtifactMetadata:
-        raise NotImplementedError("Azure Blob artifact storage is not implemented")
+        self._require_configuration()
+        validate_artifact_key(key)
+        payload = await _coalesce_payload(data)
+        checksum = hashlib.sha256(payload).hexdigest()
+        headers = self._headers({
+            "Content-Type": metadata.content_type,
+            "Content-Length": str(len(payload)),
+            "x-ms-blobs-type": "BlockBlob",
+            "x-ms-meta-artifact_type": key.artifact_type.value,
+            "x-ms-meta-owner_id": key.owner_id,
+            "x-ms-meta-artifact_id": key.artifact_id,
+            "x-ms-meta-filename": key.filename,
+            "x-ms-meta-retention_action": metadata.retention.action.value,
+            "x-ms-meta-retention_days": str(metadata.retention.retention_days or ""),
+            "x-ms-meta-checksum": checksum,
+        })
+        try:
+            response = await asyncio.to_thread(requests.put, self._blob_url(key), headers=headers, data=payload, timeout=60)
+            response.raise_for_status()
+        except Exception as exc:
+            raise ArtifactStorageError("Artifact could not be saved to Azure Blob") from exc
+        return ArtifactMetadata(
+            key=key,
+            content_type=metadata.content_type,
+            size_bytes=len(payload),
+            created_at=metadata.created_at or datetime.now(timezone.utc),
+            checksum=checksum,
+            retention=metadata.retention,
+            provider=self.provider_name,
+        )
 
     async def read(self, key: ArtifactKey) -> bytes:
-        raise NotImplementedError("Azure Blob artifact storage is not implemented")
+        self._require_configuration()
+        try:
+            response = await asyncio.to_thread(requests.get, self._blob_url(key), headers=self._headers({"Accept": "application/octet-stream"}), timeout=60)
+            if response.status_code == 404:
+                raise ArtifactNotFoundError("Artifact was not found")
+            response.raise_for_status()
+            return response.content
+        except ArtifactNotFoundError:
+            raise
+        except Exception as exc:
+            raise ArtifactStorageError("Artifact could not be read from Azure Blob") from exc
 
     async def exists(self, key: ArtifactKey) -> bool:
-        raise NotImplementedError("Azure Blob artifact storage is not implemented")
+        self._require_configuration()
+        try:
+            response = await asyncio.to_thread(requests.head, self._blob_url(key), headers=self._headers(), timeout=30)
+            if response.status_code == 404:
+                return False
+            response.raise_for_status()
+            return True
+        except Exception as exc:
+            raise ArtifactStorageError("Artifact existence could not be checked") from exc
 
     async def delete(self, key: ArtifactKey) -> bool:
-        raise NotImplementedError("Azure Blob artifact storage is not implemented")
+        self._require_configuration()
+        try:
+            response = await asyncio.to_thread(requests.delete, self._blob_url(key), headers=self._headers(), timeout=30)
+            if response.status_code == 404:
+                return False
+            response.raise_for_status()
+            return True
+        except Exception as exc:
+            raise ArtifactStorageError("Artifact could not be deleted from Azure Blob") from exc
 
     async def list(self, prefix: str | None = None) -> list[ArtifactMetadata]:
-        raise NotImplementedError("Azure Blob artifact storage is not implemented")
+        self._require_configuration()
+        params = {"restype": "container", "comp": "list", "maxresults": "5000"}
+        if prefix:
+            params["prefix"] = prefix.rstrip("/") + "/"
+        try:
+            response = await asyncio.to_thread(requests.get, self.container_url, headers=self._headers(), params=params, timeout=60)
+            response.raise_for_status()
+            return _parse_blob_listing(response.text, provider=self.provider_name)
+        except Exception as exc:
+            raise ArtifactStorageError("Artifacts could not be listed from Azure Blob") from exc
 
     async def create_download_link(self, key: ArtifactKey, expires_in_seconds: int = 300) -> ArtifactDownloadLink:
+        self._require_configuration()
         raise NotImplementedError("Azure Blob artifact storage is not implemented")
+
+
+async def _coalesce_payload(data: bytes | Iterable[bytes] | AsyncIterable[bytes]) -> bytes:
+    if isinstance(data, (bytes, bytearray, memoryview)):
+        return bytes(data)
+    chunks: list[bytes] = []
+    if hasattr(data, "__aiter__"):
+        async for chunk in data:
+            chunks.append(bytes(chunk))
+    else:
+        for chunk in data:
+            chunks.append(bytes(chunk))
+    return b"".join(chunks)
+
+
+def _parse_blob_listing(xml_payload: str, *, provider: str) -> list[ArtifactMetadata]:
+    from contracts.artifact import ArtifactType, RetentionAction, RetentionPolicy
+
+    root = ElementTree.fromstring(xml_payload)
+    results: list[ArtifactMetadata] = []
+    for blob in root.findall(".//{*}Blob"):
+        name_node = blob.find("{*}Name")
+        if name_node is None or not name_node.text:
+            continue
+        metadata_node = blob.find("{*}Metadata")
+        metadata_values = {
+            child.tag.rsplit("}", 1)[-1]: child.text or ""
+            for child in list(metadata_node) if metadata_node is not None
+        } if metadata_node is not None else {}
+        try:
+            key = ArtifactKey(
+                artifact_type=ArtifactType(metadata_values.get("artifact_type", name_node.text.split("/", 1)[0])),
+                owner_id=metadata_values.get("owner_id", ""),
+                artifact_id=metadata_values.get("artifact_id", ""),
+                filename=metadata_values.get("filename", Path(name_node.text).name),
+            )
+            validate_artifact_key(key)
+        except (KeyError, ValueError, ArtifactValidationError):
+            continue
+        properties = blob.find("{*}Properties")
+        size = 0
+        created_at = None
+        content_type = "application/octet-stream"
+        if properties is not None:
+            size_node = properties.find("{*}Content-Length")
+            size = int(size_node.text or 0) if size_node is not None else 0
+            content_type_node = properties.find("{*}Content-Type")
+            content_type = content_type_node.text if content_type_node is not None and content_type_node.text else content_type
+            created_node = properties.find("{*}Last-Modified")
+            if created_node is not None and created_node.text:
+                try:
+                    created_at = datetime.strptime(created_node.text, "%a, %d %b %Y %H:%M:%S GMT").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    created_at = None
+        try:
+            action = RetentionAction(metadata_values.get("retention_action", "delete_after_processing"))
+        except ValueError:
+            action = RetentionAction.DELETE_AFTER_PROCESSING
+        retention_days = None
+        if metadata_values.get("retention_days"):
+            try:
+                retention_days = int(metadata_values["retention_days"])
+            except ValueError:
+                retention_days = None
+        results.append(ArtifactMetadata(
+            key=key,
+            content_type=content_type,
+            size_bytes=size,
+            created_at=created_at,
+            checksum=metadata_values.get("checksum", ""),
+            retention=RetentionPolicy(action=action, retention_days=retention_days),
+            provider=provider,
+        ))
+    return results
 
 
 class S3CompatibleArtifactProvider:

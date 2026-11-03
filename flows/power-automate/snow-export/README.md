@@ -35,3 +35,12 @@ The production workbook validator is `validate_export.ts`. It returns JSON with 
 10. Disable Matcha dispatcher cleanup for this folder before go-live.
 
 Production folder, Mission, and dispatcher cleanup values remain blocked until section 7 items 17 and 18 are resolved.
+
+## Azure migration target
+
+The migration path does not upload the hourly export to Matcha Mission Storage.
+Instead, the flow validates and uploads a replacement source to the private Azure
+Blob `snow` container, then calls the CEQ `/snow/refresh` callback with the blob
+identifier, hash, row count, generation time, and settlement state. The Azure
+worker owns parsing and deterministic matching. MatchaOS receives only provider
+text and approved candidate projections.

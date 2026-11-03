@@ -23,6 +23,7 @@ Evidence labels used everywhere: **Tested** (observed in a live test), **Documen
 | 13 | `SECURITY_OPERATIONS_AND_OPEN_ITEMS.md` | Keys, rotation, migration risk, alerts, runbooks, open items |
 | 14 | `ASR_MODEL_EVALUATION.md` | Whether to replace faster-whisper large-v3-turbo; bake-off plan |
 | 15 | `DOCKER_PACKAGING_AND_PORTABILITY.md` | Portable image: contents, configuration, network and secret prerequisites, release gate |
+| 16 | `../AZURE_MATCHAOS_DEPLOYMENT.md` | Azure resources, Power Automate ingestion, MatchaOS provider settings, and deployment/rollback instructions |
 
 ## What changed since the first set
 
@@ -32,7 +33,7 @@ Evidence labels used everywhere: **Tested** (observed in a live test), **Documen
 4. KB lookup is split into per-client missions (about 12) with a code router, because of the 200-files-per-mission cap.
 5. KB lookup becomes two-stage, with cited-article validation and confidence computed in code.
 6. A portable container image is now a deliverable (Phase 8), and the speech-recognition model is up for evaluation (Parakeet versus Whisper).
-7. Live tests changed several assumptions: a browser-style User-Agent is mandatory; the new MatchaOS API has no file endpoints; the new key is limited to 120 requests per minute; the legacy and new environments are not in sync.
+7. Live tests changed several assumptions: a browser-style User-Agent is mandatory; MatchaOS now supports tested folder/file create, list, upload, and delete routes; download and replacement remain untested; the new key is limited to 120 requests per minute; the legacy and new environments are not in sync.
 
 ## Decision log
 
@@ -41,7 +42,7 @@ Evidence labels used everywhere: **Tested** (observed in a live test), **Documen
 | D1 | Matcha decides, Azure processes. Azure never calls a Mission and holds no authoritative SNOW or KB data. | Unchanged |
 | D2 | SNOW pre-match runs in Azure; the Matcha component runs in shadow, then retires after a gate. | Proposed |
 | D3 | One permanent SNOW file replaced in place hourly; rolling 72-hour report window. | Proposed (replace itself Tested) |
-| D4 | File work (SNOW replace, KB sync, Azure download) uses the legacy file API and an `mk_live_` key until Matcha confirms file endpoints in the new API. Host, folder IDs and mission IDs live in configuration. | Proposed |
+| D4 | MatchaOS Mission folders/files use UUID routes for tested create, list, upload, and delete operations. Existing legacy replacement/download migration paths remain separate until MatchaOS replacement/download parity is proven. All host, folder, Mission IDs and keys remain configuration. | Tested/Proposed |
 | D5 | Mission calls use the same environment as the files they read. The new environment is not used for the pipeline until it is synced. | Proposed |
 | D6 | Keep the SLM plus Presidio plus regex, role-aware; typed placeholders plus flags. | Proposed |
 | D7 | KB: about 12 per-client missions, routed in code from the SNOW Company field through an alias table. | Proposed |
@@ -54,7 +55,7 @@ Evidence labels used everywhere: **Tested** (observed in a live test), **Documen
 ## Glossary
 
 - **Legacy Matcha API**: `https://matcha.harriscomputer.com/rest/api/v1`, `mk_live_` keys in the `MATCHA-API-KEY` header, integer IDs, has file endpoints.
-- **New MatchaOS API**: `https://matchaos.harriscomputer.com/api`, `mos_sk_live_` keys, UUID IDs, Missions completions, Flows runs and model passthroughs, no file endpoints.
+- **New MatchaOS API**: `https://matchaos.harriscomputer.com/api`, `mos_sk_live_` keys, UUID IDs, Mission completions and folders/files with tested create, list, upload, and delete routes. Download and replacement remain untested.
 - **Shard**: one KB mission holding one client's articles (limit 200 files).
 - **Fingerprint**: the identifying facts of an interaction (caller name hint, phones, extension, location hints, issue terms, spoken ticket numbers, agent, times) extracted before redaction and used for matching in code.
 - **Projection**: the PHI-safe version of a transcript or ticket that models may see.

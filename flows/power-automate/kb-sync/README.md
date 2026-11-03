@@ -23,3 +23,12 @@ The implementation remains manual until the Matcha API capability and service-ke
 10. Keep concurrency at 1 and batch backfill at no more than 300 legacy requests per day.
 
 The planning thresholds in the map come from `KB_SYNC_AND_SHARDING_SPEC.md` and are Proposed until tuned. Mission 47043 remains unchanged until Phase 5 parity.
+
+## Azure migration target
+
+The MatchaOS migration path does not depend on per-client Missions or Mission
+file APIs. The flow uploads source articles to the private Azure Blob `ceq-kb`
+container, then the Azure ingestion worker normalizes, chunks, and indexes the
+content in Azure AI Search. Client routing and source verification remain outside
+MatchaOS. Final generation uses MatchaOS only after Azure retrieval returns
+approved citations.

@@ -27,7 +27,7 @@ Rules going forward: keys live in Key Vault or Power Automate secure inputs; nev
 
 ## 3. Legacy versus new environment
 
-Risk: files and file-reading missions live in the legacy environment; the new environment has no file endpoints and is not synced.
+Risk: legacy file-reading paths and MatchaOS mission paths are separate environments; MatchaOS folder/file create/list/upload/delete is live-tested, but no automatic sync exists and download/replacement behavior is still untested.
 
 Mitigations in this design: host, folder IDs, mission IDs and keys are configuration in every flow and in Azure; file access and the missions that read the files stay in one environment; the Mission response parser handles both formats; the client map holds both integer and UUID IDs.
 

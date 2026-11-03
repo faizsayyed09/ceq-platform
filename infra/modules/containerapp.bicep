@@ -4,24 +4,53 @@ param managedEnvironmentId string
 
 param registryServer string
 
-param registryUsername string
-
-@secure()
-param registryPassword string
-
 @secure()
 param serviceApiToken string
+
+param managedIdentityId string
+param managedIdentityClientId string
+param storageAccountEndpoint string
+param searchServiceEndpoint string
+param acrName string
+param managedIdentityPrincipalId string
+param externalIngress bool = false
+param imageDigest string
+
+resource acr 'Microsoft.ContainerRegistry/registries@2025-11-01' existing = {
+  name: acrName
+}
+
+var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-2eb6cdb0984e')
+
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, managedIdentityId, acrPullRoleId)
+  scope: acr
+  properties: {
+    principalId: managedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: acrPullRoleId
+  }
+}
 
 resource app 'Microsoft.App/containerApps@2026-01-01' = {
   name: 'ca-ceq-dev-api'
   location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
+  dependsOn: [
+    acrPullRoleAssignment
+  ]
 
   properties: {
     managedEnvironmentId: managedEnvironmentId
 
     configuration: {
       ingress: {
-        external: true
+        external: externalIngress
         targetPort: 8000
         transport: 'auto'
       }
@@ -29,16 +58,11 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
       registries: [
         {
           server: registryServer
-          username: registryUsername
-          passwordSecretRef: 'acr-password'
+          identity: managedIdentityId
         }
       ]
 
       secrets: [
-        {
-          name: 'acr-password'
-          value: registryPassword
-        }
         {
           name: 'ceq-api-service-token'
           value: serviceApiToken
@@ -51,12 +75,12 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
         {
           name: 'api'
 
-          image: '${registryServer}/ceq-platform:dev'
+          image: '${registryServer}/ceq-platform@${imageDigest}'
 
           env: [
             {
               name: 'APP_ENV'
-              value: 'development'
+              value: 'production'
             }
             {
               name: 'LOG_LEVEL'
@@ -85,6 +109,18 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
             {
               name: 'CEQ_API_SERVICE_TOKEN'
               secretRef: 'ceq-api-service-token'
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: managedIdentityClientId
+            }
+            {
+              name: 'AZURE_STORAGE_ACCOUNT_URL'
+              value: storageAccountEndpoint
+            }
+            {
+              name: 'AZURE_SEARCH_ENDPOINT'
+              value: searchServiceEndpoint
             }
           ]
 
